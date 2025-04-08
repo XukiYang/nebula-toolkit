@@ -25,7 +25,9 @@ include_directories(include) # 头文件搜索路径
 # file(GLOB SOURCES "src/*.cpp") # 自动收集源文件
 # 或显式列出源文件（推荐）：
 set(SOURCES src/main.cpp
-    src/containers/ring_buffer.cpp)
+    src/containers/ring_buffer.cpp
+    src/containers/byte_stream.cpp
+)
 # add_library(${PROJECT_NAME} STATIC ${SOURCES}) # 静态库
 # 或生成可执行文件：
 add_executable(${PROJECT_NAME} ${SOURCES})
