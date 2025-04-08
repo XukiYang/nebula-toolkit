@@ -4,7 +4,7 @@
  * @Author: YangHouQi
  * @Date: 2025-04-07 17:08:30
  * @LastEditors: YangHouQi
- * @LastEditTime: 2025-04-07 17:18:47
+ * @LastEditTime: 2025-04-08 15:08:17
  */
 #include "../../include/containers/ring_buffer.hpp"
 
@@ -62,4 +62,15 @@ int containers::RingBuffer::ReadData(std::vector<uint8_t> *read_data,
   read_index_ = (read_index_ + bytes_to_read) % buffer_.size();
   length_ -= bytes_to_read;
   return bytes_to_read;
+}
+
+void containers::RingBuffer::PrintBuffer() {
+  std::ios_base::fmtflags original_flags = std::cout.flags();
+  std::cout << "byte stream: [ ";
+  std::cout << std::hex << std::setfill('0');
+  for (const auto &item : buffer_) {
+    std::cout << std::setw(2) << static_cast<int>(item) << " ";
+  }
+  std::cout << "]" << std::endl;
+  std::cout.flags(original_flags);
 }

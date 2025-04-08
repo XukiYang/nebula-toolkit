@@ -1,15 +1,18 @@
 /*
- * @Descripttion:
+ * @Descripttion:环形缓冲区
  * @version: 1.0
  * @Author: YangHouQi
  * @Date: 2025-04-07 16:33:17
  * @LastEditors: YangHouQi
- * @LastEditTime: 2025-04-07 17:09:24
+ * @LastEditTime: 2025-04-08 14:54:10
  */
 #pragma once
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <iomanip>
+#include <ios>
+#include <iostream>
 #include <mutex>
 #include <vector>
 
@@ -20,6 +23,7 @@ public:
   explicit RingBuffer(size_t buffer_size);
   int WriteData(const std::vector<uint8_t> &write_data);
   int ReadData(std::vector<uint8_t> *read_data, size_t bytes_to_read);
+  void PrintBuffer();
 
   size_t Capacity() const { return buffer_.size(); }
   size_t Size() const { return length_; }
