@@ -4,11 +4,11 @@
  * @Author: YangHouQi
  * @Date: 2025-04-07 14:57:20
  * @LastEditors: YangHouQi
- * @LastEditTime: 2025-04-08 15:35:49
+ * @LastEditTime: 2025-04-23 17:14:37
  */
 #include "../include/containers/byte_stream.hpp"
 #include "../include/containers/ring_buffer.hpp"
-#include "../include/containers/temp_log.hpp"
+#include "../include/lib/logkit/logkit.hpp"
 #include <iostream>
 
 int test_ring_buffer() {
@@ -41,13 +41,13 @@ int main() {
   TestStruct test_struct_recver;
   byte_stream >> test_struct_recver;
   byte_stream.PrintBuffer();
-  printf("%d %d\n", test_struct_recver.age, test_struct_recver.sex);
+  LOGF_INFO("%d %d\n", test_struct_recver.age, test_struct_recver.sex);
 
   // test output too
   TestStruct test_struct_recver2;
   byte_stream >> test_struct_recver2;
   byte_stream.PrintBuffer();
-  printf("%d %d\n", test_struct_recver2.age, test_struct_recver2.sex);
+  LOGF_INFO("%d %d\n", test_struct_recver2.age, test_struct_recver2.sex);
 
   // test input string
   byte_stream << std::string("hello world");
@@ -62,11 +62,11 @@ int main() {
   std::string test_string_recver;
   test_string_recver.resize(11);
   byte_stream >> test_string_recver;
-  LOG(test_string_recver);
+  // LOG_INFO(test_string_recver);
 
   // test output vecor
   std::vector<int> test_bool_vector_recver(3);
   byte_stream >> test_bool_vector_recver;
-  LOG(test_bool_vector_recver);
+  // LOG_INFO(test_bool_vector_recver);
   return 0;
 };
