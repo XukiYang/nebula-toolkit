@@ -1,3 +1,4 @@
+# 本cmake使用使用模板构建
 cmake_minimum_required(VERSION 3.12) # 最低 CMake 版本
 project(nebula-toolkit # 项目名称
     VERSION 1.0.0 # 版本号
@@ -26,7 +27,9 @@ include_directories(include) # 头文件搜索路径
 #----------------------------------------------------------------
 # file(GLOB SOURCES "src/*.cpp") # 自动收集源文件
 # 或显式列出源文件（推荐）：
-set(SOURCES src/main.cpp
+set(SOURCES
+    tests/unit/ring_buffer_test.cpp
+
     src/containers/ring_buffer.cpp
     src/containers/byte_stream.cpp
 )
@@ -64,9 +67,9 @@ install(DIRECTORY include/ DESTINATION include) # 安装头文件
 install(TARGETS ${PROJECT_NAME} DESTINATION lib) # 安装库
 
 #----------------------------------------------------------------
-# 7. 单元测试支持（可选）
+# 7. 单元测试支持（可选）,暂时不集成测试框架
 #----------------------------------------------------------------
-if(BUILD_TESTING)
-    enable_testing()
-    add_subdirectory(tests) # 假设测试代码在 tests/ 目录
-endif()
+# if(BUILD_TESTING)
+#     enable_testing()
+#     add_subdirectory(tests) # 假设测试代码在 tests/ 目录
+# endif()
