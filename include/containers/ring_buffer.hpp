@@ -59,6 +59,7 @@ public:
 
 public:
   /// 迭代器指针使用const保护,避免非法操作
+
   /// @brief 迭代器 begin
   /// @return
   const uint8_t *begin() { return buffer_.data() + read_index_; }
@@ -96,6 +97,27 @@ protected:
   /// @brief 检测可读空间
   /// @return 返回可读空间
   size_t AvailableToRead() const { return length_; }
+
+protected:
+  /// ​完全避免内存拷贝，保持线程安全，​无缝对接系统调用
+
+  /// @brief 获取线性可写空间
+  /// @return 指针，可写字节数
+  std::pair<uint8_t *, size_t> GetLinearWriteSpace();
+
+  /// @brief 提交线性写入字节数
+  /// @param write_size
+  /// @return
+  Result CommitWriteSize(size_t write_size);
+
+  /// @brief 获取线性可读空间
+  /// @return
+  std::pair<const uint8_t *, size_t> GetLinearReadSpace();
+
+  /// @brief 提交线性读取字节数
+  /// @param write_size
+  /// @return
+  Result CommitReadSize(size_t read_size);
 
 protected:
   size_t read_index_ = 0;
