@@ -83,6 +83,11 @@ void containers::RingBuffer::PrintBuffer() {
   std::cout.flags(original_flags);
 }
 
+size_t containers::RingBuffer::Resize(size_t buffer_size) {
+  buffer_.resize(buffer_size);
+  return buffer_.size();
+}
+
 bool containers::RingBuffer::Clear() {
   std::lock_guard<std::mutex> lock(mutex_);
   read_index_ = 0;
@@ -117,3 +122,46 @@ size_t containers::RingBuffer::Peek(std::vector<uint8_t> &read_data,
   // 不变动读标志与已读标志
   return bytes_to_read;
 }
+
+std::pair<uint8_t *, size_t> containers::RingBuffer::GetLinearWriteSpace() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  // 线性可写字节数:size()-write_index
+  // 线性写入指针:data()+write_index_
+  size_t linear_space =
+      std::min(AvailableToWrite(), buffer_.size() - write_index_);
+  return {buffer_.data() + write_index_, linear_space};
+}
+
+containers::RingBuffer::Result
+containers::RingBuffer::CommitWriteSize(size_t write_size) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (write_size > AvailableToWrite()) {
+    return Result::kErrorInvalidSize;
+  }
+  // 同步写位置(环回)以及使用容量
+  write_index_ = (write_index_ + write_size) % buffer_.size();
+  length_ += write_size;
+  return Result::kSuccess;
+}
+
+std::pair<const uint8_t *, size_t>
+containers::RingBuffer::GetLinearReadSpace() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  // 线性可读字节数:size()-read_index
+  // 线性读取指针:data()+read_index
+  size_t linear_space =
+      std::min(AvailableToRead(), buffer_.size() - read_index_);
+  return {buffer_.data() + read_index_, linear_space};
+}
+
+containers::RingBuffer::Result
+containers::RingBuffer::CommitReadSize(size_t read_size) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (read_size > AvailableToRead()) {
+    return Result::kErrorInvalidSize;
+  }
+  // 同步读位置(环回)以及使用容量
+  read_index_ = (read_index_ + read_size) % buffer_.size();
+  length_ -= read_size;
+  return Result::kSuccess;
+};
