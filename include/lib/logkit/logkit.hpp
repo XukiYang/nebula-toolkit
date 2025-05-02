@@ -273,3 +273,4 @@ public:
 
 #define LOGP_VECTOR(vector)                                                    \
   LogKit::Instance().LogP(LogKit::MSG, __func__, __LINE__, vector)
+  

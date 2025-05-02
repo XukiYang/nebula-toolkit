@@ -56,21 +56,31 @@ size_t containers::RingBuffer::Read(std::vector<uint8_t> &read_data,
 }
 
 void containers::RingBuffer::PrintBuffer() {
+  std::lock_guard<std::mutex> lock(mutex_);
   std::ios_base::fmtflags original_flags = std::cout.flags();
-  std::cout << "-- byte stream --" << std::endl;
-  std::cout << std::hex << std::setfill('0');
-  std::lock_guard<std::mutex> lock(mutex_);
-  for (const auto &item : buffer_) {
-    std::cout << std::setw(2) << static_cast<int>(item) << " ";
-  }
-  std::cout << std::endl << "-----------------" << std::endl;
-  std::cout.flags(original_flags);
-}
 
-size_t containers::RingBuffer::Resize(size_t buffer_size) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  buffer_.resize(buffer_size);
-  return buffer_.size();
+  std::cout << "┌──────────────────────────────────────┐\n";
+  std::cout << "│ Ring Buffer [R:" << std::setw(2) << read_index_
+            << " W:" << std::setw(2) << write_index_ << " L:" << std::setw(2)
+            << length_ << "] │\n";
+  std::cout << "├──────────────────────────────────────┤\n";
+
+  std::cout << "│ ";
+  std::cout << std::hex << std::setfill('0');
+  for (size_t i = 0; i < buffer_.size(); ++i) {
+    std::cout << std::setw(2) << static_cast<int>(buffer_[i]) << " ";
+    if ((i + 1) % 8 == 0 && (i + 1) != buffer_.size()) {
+      std::cout << "│\n│ ";
+    }
+  }
+  size_t remaining = 8 - (buffer_.size() % 8 ? buffer_.size() % 8 : 8);
+  for (size_t i = 0; i < remaining; ++i) {
+    std::cout << "   ";
+  }
+
+  std::cout << "│\n";
+  std::cout << "└──────────────────────────────────────┘\n";
+  std::cout.flags(original_flags);
 }
 
 bool containers::RingBuffer::Clear() {
