@@ -222,6 +222,26 @@ public:
       file_manager_.file << oss.str();
     }
   }
+  template <typename T>
+  void LogP(LogLevel level, const char *func, size_t line,
+            const std::vector<T> &vector) {
+
+    std::ostringstream oss;
+    oss << CurrentTime() << " " << LevelToString(level);
+    if (config_.print_func)
+      oss << func << " ";
+    if (config_.print_line)
+      oss << "L" << line << " ";
+
+    for (size_t i = 0; i < vector.size(); ++i) {
+      if (i != 0) // 首行不加
+        oss << ",";
+      oss << vector[i];
+    }
+    oss << "\n";
+
+    std::cout << oss.str();
+  }
 
   static LogKit &Instance() {
     static LogKit instance;
@@ -250,3 +270,7 @@ public:
   LogKit::Instance().LogF(LogKit::DEBUG, __func__, __LINE__, fmt, ##__VA_ARGS__)
 #define LOGF_ERROR(fmt, ...)                                                   \
   LogKit::Instance().LogF(LogKit::ERROR, __func__, __LINE__, fmt, ##__VA_ARGS__)
+
+#define LOGP_VECTOR(vector)                                                    \
+  LogKit::Instance().LogP(LogKit::MSG, __func__, __LINE__, vector)
+  
