@@ -13,6 +13,7 @@
 #include <sstream>
 #include <sys/stat.h>
 #include <thread>
+#include <vector>
 
 class LogKit {
 public:
@@ -273,4 +274,3 @@ public:
 
 #define LOGP_VECTOR(vector)                                                    \
   LogKit::Instance().LogP(LogKit::MSG, __func__, __LINE__, vector)
-  
