@@ -1,4 +1,5 @@
 #pragma once
+#include "../lib/logkit/logkit.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -8,9 +9,10 @@
 #include <mutex>
 #include <string.h>
 #include <vector>
-
 namespace containers {
 
+/// @brief 环形缓冲区
+/// @note 一般线程安全、支持迭代器、0拷贝的线性操作、基本符合google style
 class RingBuffer {
 
 public:
@@ -30,14 +32,94 @@ public:
   /// @brief 写数据到缓冲区
   /// @param write_data
   /// @return
-  size_t Write(const std::vector<uint8_t> &write_data);
+  template <typename T> size_t Write(const std::vector<T> &write_data) {
+    std::lock_guard<std::mutex> lock(mutex_);
 
-  /// @brief 读取数据到std::vector,会根据读取字节开辟vector空间
+    if (write_data.empty())
+      return (size_t)Result::kErrorEmpty;
+
+    const size_t available = AvailableToWrite();
+    const size_t write_data_size = write_data.size() * sizeof(T);
+    LOG_MSG(available, write_data_size);
+    if (write_data_size > available) {
+      return (size_t)Result::kErrorFull; // 可写空间不足
+    }
+
+    const size_t first_chunk =
+        std::min(write_data_size, buffer_.size() - write_index_);
+
+    memcpy(buffer_.data() + write_index_, write_data.data(), first_chunk);
+    if (write_data_size > first_chunk) {
+      memcpy(buffer_.data(), write_data.data() + first_chunk,
+             write_data_size - first_chunk);
+    }
+
+    write_index_ = (write_index_ + write_data_size) % buffer_.size();
+    length_ += write_data_size;
+    return write_data_size;
+  };
+
+  /// @brief 读取数据到std::vector
   /// @param read_data
   /// @param bytes_to_read
   /// @return
-  size_t Read(std::vector<uint8_t> &read_data, size_t bytes_to_read);
+  template <typename T>
+  size_t Read(std::vector<T> &read_data, size_t bytes_to_read) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    // 过滤非空情况
+    if (bytes_to_read == 0)
+      return (size_t)Result::kErrorEmpty;
 
+    // 大小必须被整除
+    if (bytes_to_read % sizeof(T) != 0) {
+      return (size_t)Result::kErrorInvalidSize;
+    }
+
+    // 确保有足够空间
+    if (read_data.size() * sizeof(T) < bytes_to_read) {
+      return (size_t)Result::kErrorInvalidSize;
+    }
+
+    // 读取可读空间
+    const size_t available = AvailableToRead();
+    if (bytes_to_read > available) {
+      return (size_t)Result::kErrorFull; // 可读空间不足
+    }
+
+    const size_t num_elements = bytes_to_read / sizeof(T);
+
+    // 环回
+    const size_t first_chunk =
+        std::min(bytes_to_read, buffer_.size() - read_index_);
+
+    // 拷贝到对应的地址
+    memcpy(read_data.data(), buffer_.data() + read_index_, first_chunk);
+
+    // 如果读取字节大于线性第一块，环回
+    if (bytes_to_read > first_chunk) {
+      memcpy(read_data.data() + (first_chunk / sizeof(T)), buffer_.data(),
+             bytes_to_read - first_chunk);
+    }
+
+    read_index_ = (read_index_ + bytes_to_read) % buffer_.size();
+
+    length_ -= bytes_to_read;
+    return bytes_to_read;
+  };
+
+  /// @brief 读取指定字节数据到std::byte *
+  /// @param read_ptr
+  /// @param bytes_to_read
+  /// @return
+  size_t Read(std::byte *read_ptr, size_t bytes_to_read);
+
+  /// @brief 写入std::byte *指定字节数据
+  /// @param write_ptr
+  /// @param bytes_to_write
+  /// @return
+  size_t Write(const std::byte *write_ptr, size_t bytes_to_write);
+
+public:
   /// @brief hex打印缓冲区
   void PrintBuffer();
 
