@@ -1,13 +1,5 @@
-/*
- * @Descripttion:
- * @version: 1.0
- * @Author: YangHouQi
- * @Date: 2025-05-09 15:06:38
- * @LastEditors: YangHouQi
- * @LastEditTime: 2025-05-09 17:00:04
- */
-#include "../../include/lib/logkit/logkit.hpp"
-#include "../../include/lib/threading/thread_pool.hpp"
+#include "../../include/logkit/logkit.hpp"
+#include "../../include/threading/thread_pool.hpp"
 #include <atomic>
 #include <chrono>
 #include <future>

@@ -1,11 +1,3 @@
-/*
- * @Descripttion:
- * @version: 1.0
- * @Author: YangHouQi
- * @Date: 2025-05-09 11:59:16
- * @LastEditors: YangHouQi
- * @LastEditTime: 2025-05-09 16:55:02
- */
 #pragma once
 #include <atomic>
 #include <condition_variable>

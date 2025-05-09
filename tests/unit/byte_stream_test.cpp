@@ -1,5 +1,5 @@
 #include "../../include/containers/byte_stream.hpp"
-#include "../../include/lib/logkit/logkit.hpp"
+#include "../../include/logkit/logkit.hpp"
 
 #pragma pack(1)
 struct TestStruct {

@@ -1,5 +1,5 @@
 #pragma once
-#include "../lib/logkit/logkit.hpp"
+#include "../logkit/logkit.hpp"
 #include "ring_buffer.hpp"
 #include <memory>
 #include <string.h>
