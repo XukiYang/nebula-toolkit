@@ -1,5 +1,5 @@
 #include "../../include/containers/byte_stream.hpp"
-#include "../../include/lib/logkit/logkit.hpp"
+#include "../../include/logkit/logkit.hpp"
 
 #pragma pack(1)
 struct TestStruct {
@@ -23,17 +23,17 @@ void General_IO_Testing() {
 
   byte_stream >> test_out_struct;
   byte_stream.PrintBuffer();
-  LOGF_MSG("%d %d", test_out_struct.age, test_out_struct.sex);
+  LOGP_MSG("%d %d", test_out_struct.age, test_out_struct.sex);
 
   std::vector<int> test_in_vector = {1, 2, 3};
   std::vector<int> test_out_vector(3);
-  LOGP_VECTOR(test_out_vector);
+  LOG_VECTOR(test_out_vector);
 
   byte_stream << test_in_vector;
   byte_stream.PrintBuffer();
   byte_stream >> test_out_vector;
-  LOGP_VECTOR(test_out_vector);
-  LOGF_MSG("%d,%d", test_in_vector.size(), test_out_vector.size());
+  LOG_VECTOR(test_out_vector);
+  LOGP_MSG("%d,%d", test_in_vector.size(), test_out_vector.size());
 
   std::string test_in_string("hello"), test_out_string;
   byte_stream << test_in_string;

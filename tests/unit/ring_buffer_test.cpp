@@ -1,5 +1,5 @@
 #include "../../include/containers/ring_buffer.hpp"
-#include "../../include/lib/logkit/logkit.hpp"
+#include "../../include/logkit/logkit.hpp"
 
 void General_IO_Testing() {
   LOG_MSG("General_IO_Testing");
@@ -32,17 +32,17 @@ void General_IO_Testing() {
   containers::RingBuffer ring_buffer_2(1);
   in = {'t'};
   size_t w_ret = ring_buffer_2.Write(in);
-  LOGF_MSG("write ret:%d", w_ret);
+  LOGP_MSG("write ret:%d", w_ret);
   w_ret = ring_buffer_2.Write(in);
-  LOGF_MSG("write ret:%d", w_ret);
+  LOGP_MSG("write ret:%d", w_ret);
 
   // 可读测试
   size_t r_ret = ring_buffer_2.Read(in, 2);
-  LOGF_MSG("read ret:%d", r_ret);
+  LOGP_MSG("read ret:%d", r_ret);
   r_ret = ring_buffer_2.Read(in, 1);
-  LOGF_MSG("read ret:%d", r_ret);
+  LOGP_MSG("read ret:%d", r_ret);
   r_ret = ring_buffer_2.Read(in, 1);
-  LOGF_MSG("read ret:%d", r_ret);
+  LOGP_MSG("read ret:%d", r_ret);
 
   // 环绕读写测试
   containers::RingBuffer ring_buffer_3(5);
@@ -58,13 +58,13 @@ void General_Fullempty_Testing() {
   containers::RingBuffer ring_buffer(5);
   std::vector<uint8_t> in = {'w', 'o', 'r', 'l', 'd'}, out;
 
-  LOGF_MSG("IsEmpty:%d,IsFull:%d,Usage:%f", ring_buffer.IsEmpty() * 1e2,
+  LOGP_MSG("IsEmpty:%d,IsFull:%d,Usage:%f", ring_buffer.IsEmpty() * 1e2,
            ring_buffer.IsFull(), ring_buffer.Usage());
   ring_buffer.Write(in);
-  LOGF_MSG("IsEmpty:%d,IsFull:%d,Usage:%f%", ring_buffer.IsEmpty() * 1e2,
+  LOGP_MSG("IsEmpty:%d,IsFull:%d,Usage:%f%", ring_buffer.IsEmpty() * 1e2,
            ring_buffer.IsFull() * 100, ring_buffer.Usage());
   ring_buffer.Read(out, in.size());
-  LOGF_MSG("IsEmpty:%d,IsFull:%d,Usage:%f%", ring_buffer.IsEmpty() * 1e2,
+  LOGP_MSG("IsEmpty:%d,IsFull:%d,Usage:%f%", ring_buffer.IsEmpty() * 1e2,
            ring_buffer.IsFull() * 100, ring_buffer.Usage());
 };
 
