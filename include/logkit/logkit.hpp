@@ -196,7 +196,7 @@ public:
   }
 
   void LogPrint(LogLevel level, const char *func, size_t line,
-                 const char *format, ...) {
+                const char *format, ...) {
     if (!ShouldLog(level))
       return;
 
@@ -225,7 +225,7 @@ public:
   }
   template <typename T>
   void LogVector(LogLevel level, const char *func, size_t line,
-                  const std::vector<T> &vector) {
+                 const std::vector<T> &vector) {
 
     std::ostringstream oss;
     oss << CurrentTime() << " " << LevelToString(level);
@@ -262,20 +262,20 @@ public:
   LogKit::Instance().LogCout(LogKit::ERROR, __func__, __LINE__, __VA_ARGS__)
 
 #define LOGP_MSG(fmt, ...)                                                     \
-  LogKit::Instance().LogPrint(LogKit::MSG, __func__, __LINE__, fmt,           \
-                               ##__VA_ARGS__)
+  LogKit::Instance().LogPrint(LogKit::MSG, __func__, __LINE__, fmt,            \
+                              ##__VA_ARGS__)
 #define LOGP_INFO(fmt, ...)                                                    \
-  LogKit::Instance().LogPrint(LogKit::INFO, __func__, __LINE__, fmt,          \
-                               ##__VA_ARGS__)
+  LogKit::Instance().LogPrint(LogKit::INFO, __func__, __LINE__, fmt,           \
+                              ##__VA_ARGS__)
 #define LOGP_WARN(fmt, ...)                                                    \
-  LogKit::Instance().LogPrint(LogKit::WARN, __func__, __LINE__, fmt,          \
-                               ##__VA_ARGS__)
+  LogKit::Instance().LogPrint(LogKit::WARN, __func__, __LINE__, fmt,           \
+                              ##__VA_ARGS__)
 #define LOGP_DEBUG(fmt, ...)                                                   \
-  LogKit::Instance().LogPrint(LogKit::DEBUG, __func__, __LINE__, fmt,         \
-                               ##__VA_ARGS__)
+  LogKit::Instance().LogPrint(LogKit::DEBUG, __func__, __LINE__, fmt,          \
+                              ##__VA_ARGS__)
 #define LOGP_ERROR(fmt, ...)                                                   \
-  LogKit::Instance().LogPrint(LogKit::ERROR, __func__, __LINE__, fmt,         \
-                               ##__VA_ARGS__)
+  LogKit::Instance().LogPrint(LogKit::ERROR, __func__, __LINE__, fmt,          \
+                              ##__VA_ARGS__)
 
 #define LOG_VECTOR(vector)                                                     \
   LogKit::Instance().LogVector(LogKit::MSG, __func__, __LINE__, vector)
