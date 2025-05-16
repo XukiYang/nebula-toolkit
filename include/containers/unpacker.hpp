@@ -15,12 +15,15 @@ class UnPacker : public RingBuffer {
   enum UnPackerResult { kSuccess = 0, kError = -1 };
 
 public:
-  UnPacker(HeadSzCb head_type_cb, TailSzCb tail_type_cb,
-           const HeadKey &&head_key, const TailKey &&tail_key,
-           size_t buffer_size = 1024)
+  UnPacker(HeadSzCb head_type_cb, TailSzCb tail_type_cb, HeadKey &&head_key,
+           TailKey &&tail_key, size_t buffer_size = 1024)
       : RingBuffer(buffer_size), head_type_cb_(head_type_cb),
         tail_type_cb_(tail_type_cb), head_key_(std::move(head_key)),
-        tail_key_(std::move(tail_key)) {}
+        tail_key_(std::move(tail_key)) {
+    if (!head_type_cb_ || !tail_type_cb_) {
+      throw std::invalid_argument("Callback functions cannot be null");
+    }
+  }
 
   /// @brief
   /// @param write_data
@@ -29,6 +32,9 @@ public:
   /// @return
   size_t PushAndGet(const uint8_t *write_data, size_t data_size,
                     std::vector<std::vector<uint8_t>> &read_data) {
+    if (write_data == nullptr) {
+      return UnPackerResult::kError;
+    }
     size_t write_ret =
         Write(reinterpret_cast<const std::byte *>(write_data), data_size);
     LOGP_DEBUG("write_ret=%d,AvailableToRead:%d", write_ret, AvailableToRead());
@@ -42,45 +48,91 @@ private:
   /// @return
   UnPackerResult GetPack(std::vector<std::vector<uint8_t>> &read_data) {
 
-    // 仅头定位符
+    // 仅头定位符（包含头定位符）
     if (!head_key_.empty() && tail_key_.empty()) {
+
       // 查找头定位符
       size_t first_head_pos = FindKey(head_key_);
-      LOGP_DEBUG("head_pos:%d", first_head_pos);
+      LOGP_DEBUG("first_head_pos:%d", first_head_pos);
       if (first_head_pos == buffer_.size()) {
         return UnPackerResult::kError;
       }
+      while (AvailableToRead()) {
+        // 查找下一个头定位符
+        size_t second_head_pos =
+            FindKey(head_key_, first_head_pos + head_key_.size());
+        LOGP_DEBUG("second_head_pos:%d", second_head_pos);
 
-      // 查找下一个头定位符
-      size_t second_head_pos =
-          FindKey(head_key_, first_head_pos + head_key_.size());
-      LOGP_DEBUG("tail_pos:%d", second_head_pos);
+        // 下一个头定位符到达缓冲区末尾
+        if (second_head_pos == buffer_.size()) {
+          return UnPackerResult::kError;
+        }
 
-      // 下一个头定位符到达末位 error
-      if (second_head_pos == buffer_.size()) {
-        return UnPackerResult::kError;
+        // 计算包含定位符的完整一包数据
+        size_t data_len = second_head_pos - first_head_pos;
+        std::vector<uint8_t> packet(data_len);
+
+        // 计算线性可读空间
+        size_t first_chunk =
+            std::min(data_len, buffer_.size() - first_head_pos);
+        memcpy(packet.data(), buffer_.data() + first_head_pos, first_chunk);
+
+        // 如果包数据超过了线性可读空间，则发生换回
+        if (data_len > first_chunk) {
+          // 拷贝环回数据
+          memcpy(packet.data() + first_chunk, buffer_.data(),
+                 data_len - first_chunk);
+        }
+
+        read_data.emplace_back(std::move(packet));
+        CommitReadSize(data_len);
+
+        first_head_pos = second_head_pos;
       }
 
-      // 计算包含定位符的完整一包数据
-      size_t data_len = second_head_pos - first_head_pos;
-      std::vector<uint8_t> packet(data_len);
-
-      // 计算线性可读空间
-      size_t first_chunk = std::min(data_len, buffer_.size() - first_head_pos);
-      memcpy(packet.data(), buffer_.data() + first_head_pos, first_chunk);
-
-      // 如果包数据超过了线性可读空间，则发生换回
-      if (data_len > first_chunk) {
-        // 拷贝环回数据
-        memcpy(packet.data() + first_chunk, buffer_.data(),
-               data_len - first_chunk);
-      }
-      read_data.emplace_back(std::move(packet));
-      CommitReadSize(data_len);
       return UnPackerResult::kSuccess;
     }
-    // 头和尾定位符
+    // 头和尾定位符（包含头尾定位符）
     else if (!head_key_.empty() && !tail_key_.empty()) {
+      // 查找头定位符
+      size_t head_pos = FindKey(head_key_);
+      LOGP_DEBUG("head_pos:%d", head_pos);
+      if (head_pos == buffer_.size()) {
+        return UnPackerResult::kError;
+      }
+      while (AvailableToRead()) {
+        // 查找下一个头定位符
+        size_t tail_pos = FindKey(tail_key_, head_pos + head_key_.size());
+        LOGP_DEBUG("tail_pos:%d", tail_pos);
+
+        // 下一个头定位符到达缓冲区末尾
+        if (head_pos == buffer_.size()) {
+          return UnPackerResult::kError;
+        }
+        // 计算包含定位符的完整一包数据
+        size_t data_len = tail_pos - head_pos + tail_key_.size();
+        std::vector<uint8_t> packet(data_len);
+
+        // 计算线性可读空间
+        size_t first_chunk = std::min(data_len, buffer_.size() - tail_pos);
+        memcpy(packet.data(), buffer_.data() + tail_pos + tail_key_.size(),
+               first_chunk);
+
+        // 如果包数据超过了线性可读空间，则发生换回
+        if (data_len > first_chunk) {
+          // 拷贝环回数据
+          memcpy(packet.data() + first_chunk, buffer_.data(),
+                 data_len - first_chunk);
+        }
+
+        head_pos = FindKey(head_key_, tail_pos + tail_key_.size());
+        LOGP_MSG("head_pos:%d", head_pos);
+        if (head_pos == buffer_.size()) {
+          return UnPackerResult::kError;
+        }
+        read_data.emplace_back(std::move(packet));
+        CommitReadSize(data_len);
+      }
       return UnPackerResult::kSuccess;
     }
     // 其他
@@ -95,7 +147,8 @@ private:
   /// @param start_index 起始搜索位置（绝对位置）
   /// @return 找到返回绝对位置，未找到返回buffer_.size()
   size_t FindKey(const std::vector<uint8_t> &find_key, size_t start_index = 0) {
-    if (find_key.empty() || start_index >= buffer_.size()) {
+    if (find_key.empty() || start_index >= buffer_.size() ||
+        find_key.size() > AvailableToRead()) {
       return buffer_.size();
     }
 
