@@ -41,41 +41,53 @@ private:
   /// @param read_data
   /// @return
   UnPackerResult GetPack(std::vector<std::vector<uint8_t>> &read_data) {
-    // 过滤头尾标记为空的情况
-    if (head_key_.empty() && tail_key_.empty()) {
+
+    // 仅头定位符
+    if (!head_key_.empty() && tail_key_.empty()) {
+      // 查找头定位符
+      size_t first_head_pos = FindKey(head_key_);
+      LOGP_DEBUG("head_pos:%d", first_head_pos);
+      if (first_head_pos == buffer_.size()) {
+        return UnPackerResult::kError;
+      }
+
+      // 查找下一个头定位符
+      size_t second_head_pos =
+          FindKey(head_key_, first_head_pos + head_key_.size());
+      LOGP_DEBUG("tail_pos:%d", second_head_pos);
+
+      // 下一个头定位符到达末位 error
+      if (second_head_pos == buffer_.size()) {
+        return UnPackerResult::kError;
+      }
+
+      // 计算包含定位符的完整一包数据
+      size_t data_len = second_head_pos - first_head_pos;
+      std::vector<uint8_t> packet(data_len);
+
+      // 计算线性可读空间
+      size_t first_chunk = std::min(data_len, buffer_.size() - first_head_pos);
+      memcpy(packet.data(), buffer_.data() + first_head_pos, first_chunk);
+
+      // 如果包数据超过了线性可读空间，则发生换回
+      if (data_len > first_chunk) {
+        // 拷贝环回数据
+        memcpy(packet.data() + first_chunk, buffer_.data(),
+               data_len - first_chunk);
+      }
+      read_data.emplace_back(std::move(packet));
+      CommitReadSize(data_len);
+      return UnPackerResult::kSuccess;
+    }
+    // 头和尾定位符
+    else if (!head_key_.empty() && !tail_key_.empty()) {
+      return UnPackerResult::kSuccess;
+    }
+    // 其他
+    else {
       LOG_DEBUG("头尾标记为空");
       return UnPackerResult::kError;
     }
-    LOG_VECTOR(head_key_);
-    LOG_VECTOR(tail_key_);
-    // 查找头标记
-    size_t head_pos = FindKey(head_key_);
-    if (head_pos == buffer_.size()) {
-      return UnPackerResult::kError;
-    }
-    LOGP_DEBUG("head_pos:%d", head_pos);
-
-    // 查找尾标记
-    size_t tail_pos = FindKey(tail_key_, head_pos + head_key_.size());
-    if (tail_pos == buffer_.size()) {
-      return UnPackerResult::kError;
-    }
-    LOGP_DEBUG("tail_pos:%d", tail_pos);
-
-    // 提取数据
-    size_t data_len = tail_pos - head_pos - head_key_.size();
-    std::vector<uint8_t> packet(data_len);
-
-    // 安全读取数据（考虑环回）
-    size_t first_chunk = std::min(data_len, buffer_.size() - head_pos);
-    memcpy(packet.data(), buffer_.data() + head_pos, first_chunk);
-    if (data_len > first_chunk) {
-      memcpy(packet.data() + first_chunk, buffer_.data(),
-             data_len - first_chunk);
-    }
-
-    read_data.emplace_back(std::move(packet));
-    return UnPackerResult::kSuccess;
   }
 
   /// @brief 在环形缓冲区中查找关键字节序列

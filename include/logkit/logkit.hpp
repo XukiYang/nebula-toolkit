@@ -237,7 +237,10 @@ public:
     for (size_t i = 0; i < vector.size(); ++i) {
       if (i != 0) // 首行不加
         oss << ",";
-      oss << vector[i];
+      if(sizeof(vector[i])==1)
+        oss << (size_t)vector[i];
+      else  
+        oss << vector[i];
     }
     oss << "\n";
 
