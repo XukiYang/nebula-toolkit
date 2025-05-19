@@ -8,8 +8,10 @@ int main(int argc, char const *argv[]) {
   //             HeadKey{0x7, 0x9}, TailKey{0xE}, 128);
 
   // 测试仅包含头定位符的解包
-  UnPacker up(HeadSzCb([] { return 0; }), TailSzCb([] { return 0; }),
-              HeadKey{0x7, 0x9}, HeadKey{}, 128);
+  // UnPacker up(HeadSzCb([] { return 0; }), TailSzCb([] { return 0; }),
+  //             HeadKey{0x7, 0x9}, HeadKey{}, 128);
+
+  UnPacker up(HeadKey{0x7, 0x9}, HeadKey{}, 128);
 
   std::vector<uint8_t> test_in_data = {0x7, 0x9, 1, 2, 3, 4, 5, 6, 7, 8, 0xE,
                                        0x7, 0x9, 1, 2, 3, 4, 5, 6, 7, 8, 0xE,
