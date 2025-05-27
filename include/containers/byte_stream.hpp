@@ -15,7 +15,7 @@ class ByteStream : public RingBuffer {
 public:
   /// @brief 转发构造函数​​
   /// @param buffer_size
-  ByteStream(size_t buffer_size) : RingBuffer(buffer_size) {}
+  ByteStream(size_t buffer_size = 128) : RingBuffer(buffer_size) {}
 
   /// @brief 读取自定义类型数据
   /// @tparam T
