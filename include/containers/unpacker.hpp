@@ -5,7 +5,7 @@
 
 namespace containers {
 
-/** 解析字节数回调:外部定义解析逻辑
+/** 解析字节数回调:外部定义自定义解析逻辑
  * *head_ptr:解析数据头指针
  * &head_size:获取头大小
  * &data_size:获取头尾之外数据大小
@@ -13,7 +13,7 @@ namespace containers {
  */
 using DataSzCb = std::function<void(const uint8_t *head_ptr, size_t &head_size,
                                     size_t &data_size, size_t &tail_size)>;
-/** 校验检查回调:外部传入特定校验逻辑
+/** 校验检查回调:外部传入自定义校验逻辑
  * *data_ptr:校验数据指针
  * &data_len:获取校验数据长度
  * bool ret:返回是否有效或无效
@@ -30,29 +30,43 @@ class UnPacker : public RingBuffer {
   enum UnpackerModel { kHead, kHeadTail, KHeadTailCb };
 
 public:
+  /// @brief
+  /// @param head_key
+  /// @param tail_key
+  /// @param buffer_size
   UnPacker(HeadKey &&head_key = {}, TailKey &&tail_key = {},
            size_t buffer_size = 1024)
       : RingBuffer(buffer_size), head_key_(std::move(head_key)),
         tail_key_(std::move(tail_key)) {
     unpacker_model_ = CheckModel();
+    LOGP_DEBUG("unpackermodel:%d", unpacker_model_);
   }
 
+  /// @brief 基于单头定位符与头尾定位符以及回调的构造
+  /// @param head_key
+  /// @param tail_key
+  /// @param data_sz_cb
+  /// @param check_sz_cb
+  /// @param buffer_size
   UnPacker(HeadKey &&head_key = {}, TailKey &&tail_key = {},
-           DataSzCb data_sz_cb, CheckValidCb check_sz_cb,
-           size_t buffer_size = 1024)
+           DataSzCb &&data_sz_cb = nullptr,
+           CheckValidCb &&check_sz_cb = nullptr, size_t buffer_size = 1024)
       : RingBuffer(buffer_size), head_key_(std::move(head_key)),
-        data_sz_cb_(data_sz_cb), check_sz_cb_(check_sz_cb),
-        tail_key_(std::move(tail_key)) {
+        data_sz_cb_(std::move(data_sz_cb)),
+        check_sz_cb_(std::move(check_sz_cb)), tail_key_(std::move(tail_key)) {
     unpacker_model_ = CheckModel();
+    LOGP_DEBUG("unpackermodel:%d", unpacker_model_);
   }
 
+  /// @brief 检查解包模式
+  /// @return UnpackerModel
   UnpackerModel CheckModel() {
-    if (!head_key_.empty() && tail_key_.empty())
+    if (data_sz_cb_ && check_sz_cb_ && !head_key_.empty() && !tail_key_.empty())
+      return UnpackerModel::KHeadTailCb;
+    else if (!head_key_.empty() && tail_key_.empty())
       return UnpackerModel::kHead;
     else if (!head_key_.empty() && !tail_key_.empty())
       return UnpackerModel::kHeadTail;
-    else if (data_sz_cb_ && check_sz_cb_)
-      return UnpackerModel::KHeadTailCb;
   };
 
   /// @brief 提交数据并解析数据包
@@ -158,7 +172,9 @@ private:
   }
 
 private:
-  // 仅头定位符分包模式
+  /// @brief 仅头定位符分包模式
+  /// @param read_data
+  /// @return UnPackerResult
   UnPackerResult
   ProcessHeadOnlyMode(std::vector<std::vector<uint8_t>> &read_data) {
     // 查找头定位符
@@ -206,7 +222,9 @@ private:
     return UnPackerResult::kSuccess;
   };
 
-  // 头尾定位符分包模式
+  /// @brief 头尾定位符分包模式
+  /// @param read_data
+  /// @return UnPackerResult
   UnPackerResult
   ProcessHeadTailMode(std::vector<std::vector<uint8_t>> &read_data) {
     // 查找头定位符
@@ -258,6 +276,9 @@ private:
     return UnPackerResult::kSuccess;
   };
 
+  /// @brief 头尾定位符以及回调分包模式
+  /// @param read_data
+  /// @return UnPackerResult
   UnPackerResult
   ProcessHeadTailAndCbMode(std::vector<std::vector<uint8_t>> &read_data) {
     // 查找头定位符
@@ -270,15 +291,21 @@ private:
     while (AvailableToRead()) {
       size_t head_size = 0, data_size = 0, tail_size = 0;
       data_sz_cb_(buffer_.data() + head_pos, head_size, data_size, tail_size);
+      LOGP_DEBUG("head_size:%d,data_size:%d,tail_size:%d", head_size, data_size,
+                 tail_size);
       size_t data_len = head_size + data_size + tail_size;
 
       // 若解出来的完整包长小于头尾定位符，则跳出此包
       if (data_len < head_key_.size() + tail_key_.size()) {
+        LOG_DEBUG("pack small");
         continue;
       }
       // 基于头位置，查找包尾，判定是否符合预期
       size_t tail_pos = FindKey(tail_key_, head_pos + head_key_.size());
-      if (tail_pos - head_pos != data_len) {
+
+      if (tail_pos + tail_size - head_pos != data_len) {
+        LOGP_DEBUG("no equal,[data_len:%d,%d]head_pos:%d,tail_pos:%d", data_len,
+                   tail_pos + tail_size - head_pos, head_pos, tail_pos);
         continue;
       }
       history_find_key_pos_ = tail_pos + tail_key_.size();
@@ -294,13 +321,15 @@ private:
         memcpy(packet.data() + first_chunk, buffer_.data(),
                data_len - first_chunk);
       }
-      bool check_ret =
-          CheckValidCb(static_cast<const uint8_t *>(packet.data()));
+
+      // 数据校验
+      bool check_ret = check_sz_cb_(packet.data());
 
       read_data.emplace_back(std::move(packet));
       CommitReadSize(data_len);
-      LOGP_DEBUG("head_pos:%d,tail_pos:%d,data_len:%d,first_chunk:%d", head_pos,
-                 tail_pos, data_len, first_chunk);
+      LOGP_DEBUG("head_pos:%d,tail_pos:%d,[data_len:%d,%d],first_chunk:%d",
+                 head_pos, tail_pos, data_len, tail_pos + tail_size - head_pos,
+                 first_chunk);
 
       // 基于尾定位符位置，查找下一包的头定位符位置
       size_t head_pos_t = FindKey(head_key_, tail_pos + tail_key_.size());
