@@ -14,10 +14,17 @@
 
 namespace net
 {
+  enum EventFlag
+  {
+    kReadBit,
+    kWriteBit,
+    kErrorBit
+  };
+
   struct Event
   {
     int fd;
-    uint32_t event_flags; // 组合值：READ_BIT | WRITE_BIT | ERROR_BIT
+    EventFlag event_flag;
   };
 
   /// @brief 协议处理器统一接口
