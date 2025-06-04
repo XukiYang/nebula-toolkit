@@ -1,3 +1,4 @@
+#pragma once
 #include "thread_pool.hpp"
 #include <unordered_set>
 
