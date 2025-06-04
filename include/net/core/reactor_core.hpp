@@ -14,11 +14,12 @@
 
 namespace net
 {
-  enum EventFlag
+  enum EventFlags
   {
-    kReadBit,
-    kWriteBit,
-    kErrorBit
+    kReadable = 0x01, // 对应EPOLLIN
+    kWritable = 0x02, // 对应EPOLLOUT
+    kError = 0x04,    // 对应EPOLLERR
+    kHangUp = 0x08    // 对应EPOLLHUP
   };
 
   enum TriggerMode
@@ -30,7 +31,7 @@ namespace net
   struct Event
   {
     int fd;
-    EventFlag event_flag;
+    EventFlags event_flags;
   };
 
   /// @brief 协议处理器统一接口
@@ -57,13 +58,51 @@ namespace net
         throw std::runtime_error("epoll_create");
     }
 
+    ~ReactorCore()
+    {
+      close(epoll_fd_);
+    }
+
     /// @brief 注册协议处理器
-    /// @param scoket_fd
+    /// @param socket_fd
     /// @param protocol_handler
     /// @param mode
-    void RegisterProtocol(int scoket_fd, std::unique_ptr<ProtocolHandler> protocol_handler, TriggerMode mode = TriggerMode::kEt) {
+    void RegisterProtocol(int socket_fd, std::unique_ptr<ProtocolHandler> protocol_handler, TriggerMode mode = TriggerMode::kEt)
+    {
+      // 转换mode为标识掩码为水平还是边缘触发
+      uint32_t events = EPOLLIN;
+      if (mode == kEt)
+        events |= EPOLLET;
 
+      // 准备epoll_event
+      epoll_event ev{};
+      ev.events = events;
+      ev.data.fd = socket_fd; // 存储原始fd
+
+      // 将该socket加入实例监控
+      if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, socket_fd, &ev) == -1)
+      {
+        throw std::runtime_error("epoll_ctl add");
+      }
+
+      // 存储映射关系
+      protocol_handlers_[socket_fd] = std::move(protocol_handler);
     };
+
+    /// @brief 移除已注册的fd以及处理器
+    /// @param socket_fd
+    void UnRegisterSocket(int socket_fd)
+    {
+      if (epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, socket_fd, nullptr) == -1)
+      {
+        perror("epoll_ctl del");
+      }
+
+      protocol_handlers_.erase(socket_fd);
+
+      // 从内核中去除该套接字
+      close(socket_fd);
+    }
 
     /// @brief 主事件循环
     void Run()
@@ -86,17 +125,13 @@ namespace net
           Event ev;
           ev.fd = events[i].data.fd;
           if (events[i].events & EPOLLIN)
-          {
-            ev.event_flag = kReadBit;
-          }
-          else if (events[i].events & EPOLLOUT)
-          {
-            ev.event_flag = kWriteBit;
-          }
-          else if (events[i].events & EPOLLERR)
-          {
-            ev.event_flag = kErrorBit;
-          }
+            ev.event_flags = kReadable;
+          if (events[i].events & EPOLLOUT)
+            ev.event_flags = kWritable;
+          if (events[i].events & EPOLLERR)
+            ev.event_flags = kError;
+          if (events[i].events & EPOLLHUP)
+            ev.event_flags = kHangUp;
 
           // 找到对应的处理器
           auto it = protocol_handlers_.find(ev.fd);
@@ -109,8 +144,8 @@ namespace net
     };
 
   private:
-    /// @brief
-    void DispatchEvents(const Event &event) {};
+    /// @brief 调度事件(暂时注释)
+    // void DispatchEvents(const Event &event) {};
 
   private:
     int epoll_fd_ = -1;
