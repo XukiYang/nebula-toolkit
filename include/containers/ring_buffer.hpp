@@ -171,7 +171,7 @@ public:
   /// @return 使用率
   float Usage() const { return static_cast<float>(length_) / buffer_.size(); }
 
-protected:
+public:
   /// @brief 检测可写空间
   /// @return 返回可写空间
   size_t AvailableToWrite() const { return buffer_.size() - length_; }
@@ -180,7 +180,7 @@ protected:
   /// @return 返回可读空间
   size_t AvailableToRead() const { return length_; }
 
-protected:
+public:
   /// ​完全避免内存拷贝，保持线程安全，​无缝对接系统调用
 
   /// @brief 获取线性可写空间
@@ -201,7 +201,7 @@ protected:
   /// @return
   Result CommitReadSize(size_t read_size);
 
-protected:
+public:
   size_t read_index_ = 0;
   size_t write_index_ = 0;
   size_t length_ = 0;
