@@ -87,6 +87,14 @@ public:
     return write_size;
   };
 
+  /// @brief 仅解析已有的数据包
+  /// @param read_data
+  /// @return
+  size_t Get(std::vector<std::vector<uint8_t>> &read_data) {
+    LOGP_DEBUG("Get Pack,AvailableToRead:%d", AvailableToRead());
+    GetPack(read_data);
+  };
+
 private:
   /// @brief 解析数据包到引用
   /// @param read_data
