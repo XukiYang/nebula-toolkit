@@ -92,7 +92,7 @@ public:
   /// @return
   size_t Get(std::vector<std::vector<uint8_t>> &read_data) {
     LOGP_DEBUG("Get Pack,AvailableToRead:%d", AvailableToRead());
-    GetPack(read_data);
+    return GetPack(read_data);
   };
 
 private:

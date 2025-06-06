@@ -23,12 +23,16 @@ class ProtocolHandler {
 public:
   explicit ProtocolHandler(containers::UnPacker *unpacker)
       : unpacker_(unpacker) {}
-  virtual void HandleEvent(const Event &event) = 0;
+  virtual void HandleEvent(int epoll_fd, const Event &event) = 0;
 
 protected:
   /// @brief 设置回调
   /// @param exec_cb
-  void setCb(ExecCb &&exec_cb) { exec_cb_ = std::forward<ExecCb>(exec_cb); };
+  void SetCallBack(ExecCb &&exec_cb) {
+    exec_cb_ = std::forward<ExecCb>(exec_cb);
+  };
+
+  virtual void AddSocketFd(int epoll_fd, int fd) = 0;
 
   containers::UnPacker *unpacker_;
   ExecCb exec_cb_;
@@ -37,11 +41,20 @@ protected:
 
 /// @brief 传输层 Tcp数据处理器
 class TcpHandler : public ProtocolHandler {
+public:
   TcpHandler(containers::UnPacker *unpacker) : ProtocolHandler(unpacker) {}
-
-  void HandleEvent(const Event &event) override {
-    if (event.event_flags == EventFlags::kReadable) {
-
+  void HandleEvent(int epoll_fd, const Event &event) override {
+    // 新连接到来
+    if (event.fd == epoll_fd && event.event_flags == EventFlags::kReadable) {
+      LOG_MSG("new connet!!!");
+      struct sockaddr_in client_address;
+      socklen_t client_addrlength = sizeof(client_address);
+      int conn_fd = accept(event.fd, (struct sockaddr *)&client_address,
+                           &client_addrlength);
+      //将新的连接套接字也注册可读事件
+      AddSocketFd(epoll_fd, conn_fd);
+    } else if (event.event_flags == EventFlags::kReadable) {
+      LOG_MSG("read event!!!");
       // 获取线性写指针与可写空间
       std::pair<const uint8_t *, size_t> linear_write_space =
           unpacker_->GetLinearWriteSpace();
@@ -68,47 +81,17 @@ class TcpHandler : public ProtocolHandler {
       }
     }
   }
+
+private:
+  void AddSocketFd(int epoll_fd, int fd) override {
+    struct epoll_event event;
+    event.data.fd = fd;
+    event.events = EPOLLIN;
+    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);
+    int old_option = fcntl(epoll_fd, F_GETFL);
+    int new_option = old_option | O_NONBLOCK;
+    fcntl(epoll_fd, F_SETFL, new_option);
+  }
 };
 
-/// @brief 传输层 新连接处理器
-class AcceptorHandler : public ProtocolHandler {
-public:
-  using NewConnectCb = std::function<void(int new_fd)>;
-  AcceptorHandler(NewConnectCb &&new_connect_cb)
-      : ProtocolHandler(nullptr), new_connect_cb_(std::move(new_connect_cb)){};
-
-  /// @brief 新连接处理
-  /// @param event
-  void HandleEvent(const Event &event) override {
-    if (event.event_flags == kReadable) {
-      // 持续接收连接知道没有更多连接
-      while (true) {
-        sockaddr_in client_addr{};
-        socklen_t addr_len = sizeof(client_addr);
-        int client_fd = accept4(event.fd, (sockaddr *)&client_addr, &addr_len,
-                                SOCK_NONBLOCK); // 非阻塞
-
-        if (client_fd == -1) {
-          if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            break; // 无更多新连接
-          } else {
-            perror("accept");
-            break;
-          }
-        }
-
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
-        printf("Accepted connection from %s:%d on fd=%d\n", client_ip,
-               ntohs(client_addr.sin_port), client_fd);
-
-        // 回调通知新连接到来
-        new_connect_cb_(client_fd);
-      }
-    }
-  };
-
-public:
-  NewConnectCb new_connect_cb_;
-};
 } // namespace net

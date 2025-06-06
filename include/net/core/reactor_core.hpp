@@ -1,6 +1,6 @@
 #pragma once
 #include "../../containers/unpacker.hpp"
-#include "../../threading/timer_scheduler.hpp"
+// #include "../../threading/timer_scheduler.hpp"
 #include "../transport/protocol_handler.hpp"
 
 #include "../transport/protocol_handler.hpp"
@@ -30,17 +30,16 @@ public:
     epoll_fd_ = epoll_create1(0);
     if (epoll_fd_ == -1)
       throw std::runtime_error("epoll_create");
+    LOG_MSG("into ReactorCore");
   }
 
   ~ReactorCore() { close(epoll_fd_); }
 
   /// @brief 注册协议处理器
-  /// @param socket_fd
-  /// @param protocol_handler
-  /// @param mode
   void RegisterProtocol(int socket_fd,
                         std::unique_ptr<ProtocolHandler> protocol_handler,
-                        TriggerMode mode = TriggerMode::kEt) {
+                        TriggerMode mode = TriggerMode::kEt,
+                        bool is_listener = false) {
     // 转换mode为标识掩码为水平还是边缘触发
     uint32_t events = EPOLLIN;
     if (mode == kEt)
@@ -61,6 +60,10 @@ public:
 
     // 存储映射关系
     protocol_handlers_[socket_fd] = std::move(protocol_handler);
+
+    // 进行监听
+    if (is_listener)
+      listen_fds_.insert(socket_fd);
   };
 
   /// @brief 移除已注册的fd以及处理器
@@ -86,6 +89,7 @@ public:
         perror("epoll_wait");
         break;
       }
+      LOGP_MSG("epoll_wait,nfds:%d");
 
       // 处理所有就绪事件
       for (int i = 0; i < nfds; ++i) {
@@ -106,51 +110,11 @@ public:
 
         // 查找处理器
         auto it = protocol_handlers_.find(fd);
-
-        // TCP新连接处理
-        if (it == protocol_handlers_.end()) {
-          // 检查是否可读的监听套接字 (TCP新连接)
-          if (ev.event_flags == kReadable) {
-            HandleTcpNewConnection(fd);
-          }
-        }
-        // 已注册的处理器处理
-        else {
-          it->second->HandleEvent(ev);
+        if (it != protocol_handlers_.end()) {
+          LOGP_MSG("event coming socket:%d", fd);
+          it->second->HandleEvent(epoll_fd_, ev);
         }
       }
-    }
-  }
-
-  /// @brief 处理TCP新连接
-  void HandleTcpNewConnection(int listen_fd) {
-    sockaddr_in client_addr{};
-    socklen_t addr_len = sizeof(client_addr);
-
-    while (true) {
-      int client_fd = accept4(listen_fd, (sockaddr *)&client_addr, &addr_len,
-                              SOCK_NONBLOCK);
-      if (client_fd < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-          break;
-        perror("accept");
-        continue;
-      }
-
-      // 打印客户端信息
-      char ip[INET_ADDRSTRLEN];
-      inet_ntop(AF_INET, &client_addr.sin_addr, ip, sizeof(ip));
-      printf("New connection from %s:%d (fd=%d)\n", ip,
-             ntohs(client_addr.sin_port), client_fd);
-
-      // 设置套接字为非阻塞
-      fcntl(client_fd, F_SETFL, fcntl(client_fd, F_GETFL) | O_NONBLOCK);
-
-      // 注册epoll事件
-      epoll_event ev{};
-      ev.events = EPOLLIN | EPOLLET; // 默认ET模式
-      ev.data.fd = client_fd;
-      epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, client_fd, &ev);
     }
   }
 
@@ -159,5 +123,6 @@ private:
   uint64_t max_events_ = 64; // epoll最大事件数
   std::unordered_map<int, std::unique_ptr<ProtocolHandler>>
       protocol_handlers_; // fd与处理器的映射
+  std::unordered_set<int> listen_fds_;
 };
 }; // namespace net
