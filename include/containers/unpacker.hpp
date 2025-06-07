@@ -124,55 +124,51 @@ private:
   /// @brief 在环形缓冲区中查找关键字节序列
   /// @param find_key 要查找的关键字节序列
   /// @param start_index 起始搜索位置（绝对位置）
-  /// @return 找到返回绝对位置，未找到返回buffer_.size()
-  size_t FindKey(const std::vector<uint8_t> &find_key, size_t start_index = 0) {
-    if (find_key.empty() || start_index >= buffer_.size() ||
-        find_key.size() > AvailableToRead()) {
-      return buffer_.size();
+  /// @return 找到返回相对位置，未找到返回缓冲区大小
+  size_t FindKey(const std::vector<uint8_t> &find_key,
+                 size_t start_offset = 0) {
+    if (find_key.empty() || find_key.size() > AvailableToRead() ||
+        start_offset >= AvailableToRead()) {
+      return buffer_.size(); // 无效参数
     }
 
     const size_t key_len = find_key.size();
-    if (key_len > AvailableToRead()) {
-      return buffer_.size();
-    }
+    const size_t total_size = AvailableToRead();
 
-    // 获取线性可读空间（考虑环回）
-    auto [ptr, linear_size] = GetLinearReadSpace();
+    // 计算绝对起始位置（考虑环回）
+    const size_t abs_start = (read_index_ + start_offset) % buffer_.size();
 
-    // 绝对位置转相对位置
-    start_index %= buffer_.size();
-    size_t rel_start = (start_index >= read_index_)
-                           ? (start_index - read_index_)
-                           : (buffer_.size() - read_index_ + start_index);
+    // 可能的两部分（如果环回）
+    size_t part1_size =
+        std::min(buffer_.size() - abs_start, total_size - start_offset);
+    size_t part2_size = total_size - start_offset - part1_size;
 
-    // 分段搜索
-    for (size_t i = rel_start; i <= linear_size - key_len; ++i) {
+    // 检查第一部分
+    for (size_t i = 0; i <= part1_size - key_len; ++i) {
       bool match = true;
       for (size_t j = 0; j < key_len; ++j) {
-        if (static_cast<uint8_t>(ptr[i + j]) != find_key[j]) {
+        if (buffer_[(abs_start + i + j) % buffer_.size()] != find_key[j]) {
           match = false;
           break;
         }
       }
       if (match) {
-        return (read_index_ + i) % buffer_.size();
+        return start_offset + i; // 返回相对位置
       }
     }
 
-    // 处理跨越缓冲末尾的情况
-    if (linear_size < key_len) {
-      size_t remaining = key_len - linear_size;
-      for (size_t i = 0; i <= buffer_.size() - remaining; ++i) {
+    // 检查第二部分（如果有）
+    if (part2_size >= key_len) {
+      for (size_t i = 0; i <= part2_size - key_len; ++i) {
         bool match = true;
         for (size_t j = 0; j < key_len; ++j) {
-          size_t pos = (read_index_ + linear_size + i + j) % buffer_.size();
-          if (static_cast<uint8_t>(buffer_[pos]) != find_key[j]) {
+          if (buffer_[i + j] != find_key[j]) {
             match = false;
             break;
           }
         }
         if (match) {
-          return (read_index_ + linear_size + i) % buffer_.size();
+          return start_offset + part1_size + i;
         }
       }
     }
@@ -186,47 +182,45 @@ private:
   /// @return UnPackerResult
   UnPackerResult
   ProcessHeadOnlyMode(std::vector<std::vector<uint8_t>> &read_data) {
-    // 查找头定位符
-    size_t first_head_pos = FindKey(head_key_, history_find_key_pos_);
-    LOGP_DEBUG("head_pos:%d,history_find_key_pos:%d", first_head_pos,
-               history_find_key_pos_);
+    size_t current_pos = 0;
+    const size_t total_size = AvailableToRead(); // 保存当前可读数据总量
+    while (current_pos < total_size) {
+      // 查找头定位符
+      size_t head_offset = FindKey(head_key_, current_pos);
+      if (head_offset == buffer_.size())
+        break;
 
-    if (first_head_pos == buffer_.size()) {
-      LOGP_DEBUG("not found first pack head,pos:%d", first_head_pos);
-      return UnPackerResult::kError;
-    }
-    while (AvailableToRead()) {
-      // 查找下一个头定位符
-      size_t second_head_pos =
-          FindKey(head_key_, first_head_pos + head_key_.size());
+      // 从头部后开始查找下一个头
+      size_t next_head_offset =
+          FindKey(head_key_, head_offset + head_key_.size());
+      if (next_head_offset == buffer_.size())
+        break;
 
-      history_find_key_pos_ = first_head_pos; // 记录上一个头位置
+      // 计算包大小（从当前头到下一个头）
+      size_t packet_size = next_head_offset - head_offset;
 
-      // 下一个头定位符到达缓冲区末尾
-      if (second_head_pos == buffer_.size()) {
-        LOGP_DEBUG("not found next pack head,pos:%d", first_head_pos);
-        return UnPackerResult::kError;
+      // 提取数据包
+      std::vector<uint8_t> packet(packet_size);
+      const size_t abs_head = (read_index_ + head_offset) % buffer_.size();
+
+      // 计算线性拷贝部分
+      const size_t to_end = buffer_.size() - abs_head;
+      const size_t part1_size = std::min(packet_size, to_end);
+
+      // 拷贝第一部分
+      memcpy(packet.data(), buffer_.data() + abs_head, part1_size);
+
+      // 处理环回部分
+      if (packet_size > part1_size) {
+        memcpy(packet.data() + part1_size, buffer_.data(),
+               packet_size - part1_size);
       }
 
-      // 计算包含定位符的完整一包数据
-      size_t data_len = second_head_pos - first_head_pos;
-      std::vector<uint8_t> packet(data_len);
+      read_data.push_back(std::move(packet));
+      current_pos = head_offset + packet_size; // 移动到当前包结束位置
 
-      // 计算线性可读空间
-      size_t first_chunk = std::min(data_len, buffer_.size() - first_head_pos);
-      memcpy(packet.data(), buffer_.data() + first_head_pos, first_chunk);
-
-      // 如果包数据超过了线性可读空间，则发生环回
-      if (data_len > first_chunk) {
-        // 拷贝环回数据
-        memcpy(packet.data() + first_chunk, buffer_.data(),
-               data_len - first_chunk);
-      }
-
-      read_data.emplace_back(std::move(packet));
-      CommitReadSize(data_len);
-
-      first_head_pos = second_head_pos;
+      // 提交读取
+      CommitReadSize(packet_size);
     }
     return UnPackerResult::kSuccess;
   };
@@ -236,125 +230,115 @@ private:
   /// @return UnPackerResult
   UnPackerResult
   ProcessHeadTailMode(std::vector<std::vector<uint8_t>> &read_data) {
-    // 查找头定位符
-    size_t head_pos = FindKey(head_key_, history_find_key_pos_);
-    LOGP_DEBUG("head_pos:%d,history_find_key_pos:%d", head_pos,
-               history_find_key_pos_);
-    if (head_pos == buffer_.size()) {
-      return UnPackerResult::kError;
+    size_t current_pos = 0;
+    const size_t total_size = AvailableToRead(); // 保存当前可读数据总量
+    while (current_pos < total_size) {
+      // 查找头定位符
+      size_t head_offset = FindKey(head_key_, current_pos);
+      if (head_offset == buffer_.size())
+        break; // 找不到头
+
+      // 从头部后开始查找尾
+      size_t tail_offset = FindKey(tail_key_, head_offset + head_key_.size());
+      if (tail_offset == buffer_.size())
+        break; // 找不到尾
+
+      // 计算包尺寸（包括头尾）
+      size_t packet_size = tail_offset + tail_key_.size() - head_offset;
+
+      // 提取数据包
+      std::vector<uint8_t> packet(packet_size);
+      const size_t abs_head = (read_index_ + head_offset) % buffer_.size();
+
+      // 计算线性复制部分
+      const size_t to_end = buffer_.size() - abs_head;
+      const size_t part1_size = std::min(packet_size, to_end);
+
+      // 复制第一部分
+      memcpy(packet.data(), buffer_.data() + abs_head, part1_size);
+
+      // 如果有环回部分
+      if (packet_size > part1_size) {
+        memcpy(packet.data() + part1_size, buffer_.data(),
+               packet_size - part1_size);
+      }
+
+      read_data.push_back(std::move(packet));
+      current_pos = tail_offset + tail_key_.size(); // 移动当前位置
+
+      // 提交读取
+      CommitReadSize(packet_size);
     }
-    while (AvailableToRead()) {
-      // 基于头定位符位置查找尾定位符
-      size_t tail_pos = FindKey(tail_key_, head_pos + head_key_.size());
 
-      history_find_key_pos_ = tail_pos + tail_key_.size();
-
-      // 未查找到
-      if (tail_pos == buffer_.size()) {
-        return UnPackerResult::kError;
-      }
-
-      // 计算包含定位符的完整一包数据
-      size_t data_len = tail_pos - head_pos + tail_key_.size();
-      std::vector<uint8_t> packet(data_len);
-
-      // 计算线性可读空间
-      size_t first_chunk = std::min(data_len, buffer_.size() - tail_pos);
-      memcpy(packet.data(), buffer_.data() + head_pos, first_chunk);
-
-      // 如果包数据超过了线性可读空间，则发生环回
-      if (data_len > first_chunk) {
-        // 拷贝环回后的剩余数据
-        memcpy(packet.data() + first_chunk, buffer_.data(),
-               data_len - first_chunk);
-      }
-
-      read_data.emplace_back(std::move(packet));
-      CommitReadSize(data_len);
-      LOGP_DEBUG("head_pos:%d,tail_pos:%d,data_len:%d,first_chunk:%d", head_pos,
-                 tail_pos, data_len, first_chunk);
-
-      // 基于尾定位符位置，查找下一包的头定位符位置
-      size_t head_pos_t = FindKey(head_key_, tail_pos + tail_key_.size());
-      if (head_pos_t == buffer_.size()) {
-        LOGP_DEBUG("not found next pack,pos:%d", head_pos_t);
-        return UnPackerResult::kError;
-      }
-      head_pos = head_pos_t;
-    }
-    return UnPackerResult::kSuccess;
-  };
+    return kSuccess;
+  }
 
   /// @brief 头尾定位符以及回调分包模式
   /// @param read_data
   /// @return UnPackerResult
   UnPackerResult
   ProcessHeadTailAndCbMode(std::vector<std::vector<uint8_t>> &read_data) {
-    // 查找头定位符
-    size_t head_pos = FindKey(head_key_, history_find_key_pos_);
-    LOGP_DEBUG("head_pos:%d,history_find_key_pos:%d", head_pos,
-               history_find_key_pos_);
-    if (head_pos == buffer_.size()) {
-      return UnPackerResult::kError;
-    }
-    while (AvailableToRead()) {
+    size_t current_pos = 0;
+    const size_t total_size = AvailableToRead();
+
+    while (current_pos < total_size) {
+      // 查找头定位符
+      size_t head_offset = FindKey(head_key_, current_pos);
+      if (head_offset == buffer_.size())
+        break;
+
+      // 应用回调获取包结构
+      const size_t abs_head = (read_index_ + head_offset) % buffer_.size();
       size_t head_size = 0, data_size = 0, tail_size = 0;
-      data_sz_cb_(buffer_.data() + head_pos, head_size, data_size, tail_size);
-      LOGP_DEBUG("head_size:%d,data_size:%d,tail_size:%d", head_size, data_size,
-                 tail_size);
-      size_t data_len = head_size + data_size + tail_size;
+      data_sz_cb_(buffer_.data() + abs_head, head_size, data_size, tail_size);
 
-      // 若解出来的完整包长小于头尾定位符，则跳出此包
-      if (data_len < head_key_.size() + tail_key_.size()) {
-        LOG_DEBUG("pack small");
+      size_t packet_size = head_size + data_size + tail_size;
+
+      // 验证包尺寸合理性
+      if (head_size < head_key_.size() || tail_size < tail_key_.size() ||
+          head_offset + packet_size > total_size) {
+        current_pos = head_offset + 1; // 移动到下一个字节
         continue;
       }
-      // 基于头位置，查找包尾，判定是否符合预期
-      size_t tail_pos = FindKey(tail_key_, head_pos + head_key_.size());
 
-      if (tail_pos + tail_size - head_pos != data_len) {
-        LOGP_DEBUG("no equal,[data_len:%d,%d]head_pos:%d,tail_pos:%d", data_len,
-                   tail_pos + tail_size - head_pos, head_pos, tail_pos);
+      // 验证尾定位符位置
+      size_t expected_tail_offset = head_offset + head_size + data_size;
+      size_t tail_offset = FindKey(tail_key_, expected_tail_offset);
+
+      // 尾定位符不匹配
+      if (tail_offset != expected_tail_offset) {
+        current_pos = head_offset + 1;
         continue;
       }
-      history_find_key_pos_ = tail_pos + tail_key_.size();
-      std::vector<uint8_t> packet(data_len);
 
-      // 计算线性可读空间
-      size_t first_chunk = std::min(data_len, buffer_.size() - tail_pos);
-      memcpy(packet.data(), buffer_.data() + head_pos, first_chunk);
+      // 创建完整包
+      std::vector<uint8_t> packet(packet_size);
+      const size_t to_end = buffer_.size() - abs_head;
+      const size_t part1_size = std::min(packet_size, to_end);
 
-      // 如果包数据超过了线性可读空间，则发生环回
-      if (data_len > first_chunk) {
-        // 拷贝环回后的剩余数据
-        memcpy(packet.data() + first_chunk, buffer_.data(),
-               data_len - first_chunk);
+      memcpy(packet.data(), buffer_.data() + abs_head, part1_size);
+
+      if (packet_size > part1_size) {
+        memcpy(packet.data() + part1_size, buffer_.data(),
+               packet_size - part1_size);
       }
 
-      // 数据校验
-      bool check_ret = check_sz_cb_(packet.data());
-
-      read_data.emplace_back(std::move(packet));
-      CommitReadSize(data_len);
-      LOGP_DEBUG("head_pos:%d,tail_pos:%d,[data_len:%d,%d],first_chunk:%d",
-                 head_pos, tail_pos, data_len, tail_pos + tail_size - head_pos,
-                 first_chunk);
-
-      // 基于尾定位符位置，查找下一包的头定位符位置
-      size_t head_pos_t = FindKey(head_key_, tail_pos + tail_key_.size());
-      if (head_pos_t == buffer_.size()) {
-        LOGP_DEBUG("not found next pack,pos:%d", head_pos_t);
-        return UnPackerResult::kError;
+      // 应用校验
+      if (!check_sz_cb_ || check_sz_cb_(packet.data())) {
+        read_data.push_back(std::move(packet));
+        current_pos = head_offset + packet_size;
+        CommitReadSize(packet_size);
+      } else {
+        current_pos = head_offset + 1; // 校验失败，移动到下一个字节
       }
-      head_pos = head_pos_t;
     }
-    return UnPackerResult::kSuccess;
+
+    return kSuccess;
   }
 
 private:
   HeadKey head_key_{};
   TailKey tail_key_{};
-  size_t history_find_key_pos_ = 0;
 
   DataSzCb data_sz_cb_ = nullptr;
   CheckValidCb check_sz_cb_ = nullptr;
