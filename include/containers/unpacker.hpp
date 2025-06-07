@@ -27,7 +27,7 @@ using TailKey = std::vector<uint8_t>;
 
 class UnPacker : public RingBuffer {
   enum UnPackerResult { kSuccess = 0, kError = -1 };
-  enum UnpackerModel { kHead, kHeadTail, KHeadTailCb };
+  enum UnpackerModel { kNone, kHead, kHeadTail, KHeadTailCb };
 
 public:
   /// @brief
@@ -67,6 +67,7 @@ public:
       return UnpackerModel::kHead;
     else if (!head_key_.empty() && !tail_key_.empty())
       return UnpackerModel::kHeadTail;
+    return UnpackerModel::kNone;
   };
 
   /// @brief 提交数据并解析数据包
@@ -347,6 +348,7 @@ private:
       }
       head_pos = head_pos_t;
     }
+    return UnPackerResult::kSuccess;
   }
 
 private:

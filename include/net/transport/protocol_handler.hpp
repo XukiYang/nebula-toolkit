@@ -1,96 +1,99 @@
 #pragma once
 #include "../../containers/unpacker.hpp"
-#include "../../threading/timer_scheduler.hpp"
 #include "enums.hpp"
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <iostream>
+#include <functional>
 #include <memory>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
 #include <sys/epoll.h>
 #include <unistd.h>
-#include <utility>
+
 namespace net {
 
-/// @brief 执行回调
+/// @brief 业务执行回调类型定义
+/// @param packs 解析后的数据包
 using ExecCb = std::function<void(std::vector<std::vector<uint8_t>> &packs)>;
-using NewConnCb = std::function<void(int new_fd)>;
 
-/// @brief 协议处理器统一接口
+/// @brief 协议处理器基类
+/// 处理不同协议的事件，提供统一接口
+/// 处理器可以是TCP、UDP等协议的具体实现
+/// 通过继承此类实现具体协议的处理逻辑
 class ProtocolHandler {
 public:
-  explicit ProtocolHandler(containers::UnPacker *unpacker)
-      : unpacker_(unpacker) {}
   virtual void HandleEvent(int epoll_fd, const Event &event) = 0;
-
-protected:
-  /// @brief 设置回调
-  /// @param exec_cb
-  void SetCallBack(ExecCb &&exec_cb) {
-    exec_cb_ = std::forward<ExecCb>(exec_cb);
-  };
-
-  virtual void AddSocketFd(int epoll_fd, int fd) = 0;
-
-  containers::UnPacker *unpacker_;
-  ExecCb exec_cb_;
-  std::vector<std::vector<uint8_t>> packs_;
+  virtual bool ShouldClose() const { return false; }
+  virtual ~ProtocolHandler() = default;
 };
 
-/// @brief 传输层 Tcp数据处理器
+/// @brief TCP协议处理器
 class TcpHandler : public ProtocolHandler {
 public:
-  TcpHandler(containers::UnPacker *unpacker) : ProtocolHandler(unpacker) {}
+  TcpHandler(int fd, std::unique_ptr<containers::UnPacker> unpacker)
+      : fd_(fd), unpacker_(std::move(unpacker)), should_close_(false) {}
+
+  void SetCallback(ExecCb cb) { cb_ = std::move(cb); }
+  bool ShouldClose() const override { return should_close_; }
+
   void HandleEvent(int epoll_fd, const Event &event) override {
-    // 新连接到来
-    if (event.fd == epoll_fd && event.event_flags == EventFlags::kReadable) {
-      LOG_MSG("new connet!!!");
-      struct sockaddr_in client_address;
-      socklen_t client_addrlength = sizeof(client_address);
-      int conn_fd = accept(event.fd, (struct sockaddr *)&client_address,
-                           &client_addrlength);
-      //将新的连接套接字也注册可读事件
-      AddSocketFd(epoll_fd, conn_fd);
-    } else if (event.event_flags == EventFlags::kReadable) {
-      LOG_MSG("read event!!!");
-      // 获取线性写指针与可写空间
-      std::pair<const uint8_t *, size_t> linear_write_space =
-          unpacker_->GetLinearWriteSpace();
-      while (true) {
-        ssize_t bytes_read = read(event.fd, (void *)linear_write_space.first,
-                                  linear_write_space.second - 1);
-        if (bytes_read == -1) {
-          if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            break;
-          }
-          perror("read");
-          close(event.fd);
-          break;
-        } else if (bytes_read == 0) {
-          printf("Client fd=%d disconnected\n", event.fd);
-          close(event.fd);
-          break;
-        } else {
-          unpacker_->CommitWriteSize(bytes_read);
-          unpacker_->Get(packs_);
-          if (packs_.size() > 1)
-            exec_cb_(packs_);
-        }
-      }
+    if (event.fd != fd_)
+      return;
+
+    // 处理错误事件
+    if (event.event_flags & EventFlags::kError) {
+      LOGP_MSG("Connection error on fd:%d", fd_);
+      should_close_ = true;
+      return;
+    }
+
+    // 处理连接挂起
+    if (event.event_flags & EventFlags::kHangUp) {
+      LOGP_MSG("Connection closed by peer on fd:%d", fd_);
+      should_close_ = true;
+      return;
+    }
+
+    // 处理可读事件（边缘触发模式）
+    if (event.event_flags & EventFlags::kReadable) {
+      ProcessReadableEvent();
     }
   }
 
 private:
-  void AddSocketFd(int epoll_fd, int fd) override {
-    struct epoll_event event;
-    event.data.fd = fd;
-    event.events = EPOLLIN;
-    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);
-    int old_option = fcntl(epoll_fd, F_GETFL);
-    int new_option = old_option | O_NONBLOCK;
-    fcntl(epoll_fd, F_SETFL, new_option);
+  const int fd_;
+  bool should_close_;
+  ExecCb cb_;
+  std::unique_ptr<containers::UnPacker> unpacker_;
+  std::vector<std::vector<uint8_t>> packs_;
+
+  void ProcessReadableEvent() {
+    while (true) {
+      auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
+      if (capacity == 0) {
+        LOGP_MSG("Buffer full on fd:%d", fd_);
+        break;
+      }
+
+      ssize_t n = read(fd_, buffer, capacity);
+
+      if (n > 0) {
+        // 提交写入数据
+        unpacker_->CommitWriteSize(n);
+
+        // 解析数据包
+        unpacker_->Get(packs_);
+
+        if (!packs_.empty() && cb_) {
+          cb_(packs_);
+        }
+      } else if (n == 0) { // 对端关闭连接
+        should_close_ = true;
+        break;
+      } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        break; // 没有更多数据可读
+      } else {
+        perror("read");
+        should_close_ = true;
+        break;
+      }
+    }
   }
 };
 
