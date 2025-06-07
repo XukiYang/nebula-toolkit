@@ -67,7 +67,8 @@ private:
     while (true) {
       auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
       if (capacity == 0) {
-        LOGP_MSG("Buffer full on fd:%d", fd_);
+        LOGP_MSG("Buffer full on fd:%d,wirte space:%d,read space:%d", fd_,
+                 unpacker_->AvailableToWrite(), unpacker_->AvailableToRead());
         break;
       }
 

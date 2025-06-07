@@ -352,13 +352,13 @@ private:
   }
 
 private:
-  HeadKey head_key_;
-  TailKey tail_key_;
+  HeadKey head_key_{};
+  TailKey tail_key_{};
   size_t history_find_key_pos_ = 0;
 
-  DataSzCb data_sz_cb_;
-  CheckValidCb check_sz_cb_;
-  UnpackerModel unpacker_model_;
+  DataSzCb data_sz_cb_ = nullptr;
+  CheckValidCb check_sz_cb_ = nullptr;
+  UnpackerModel unpacker_model_ = UnpackerModel::kNone;
 };
 
 } // namespace containers

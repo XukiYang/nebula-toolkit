@@ -137,6 +137,27 @@ public:
 
   void Stop() { running_ = false; }
 
+  /// @brief 设置连接处理器参数
+  /// @param head_key
+  /// @param tail_key
+  /// @param data_sz_cb_
+  /// @param check_sz_cb_
+  /// @param exec_cb_
+  /// @param buffer_size
+  void SetConnHandlerParams(containers::HeadKey &&head_key,
+                            containers::TailKey &&tail_key,
+                            containers::DataSzCb data_sz_cb = nullptr,
+                            containers::CheckValidCb check_sz_cb = nullptr,
+                            ExecCb exec_cb = nullptr,
+                            size_t buffer_size = 1024) {
+    head_key_ = std::move(head_key);
+    tail_key_ = std::move(tail_key);
+    data_sz_cb_ = std::move(data_sz_cb);
+    check_sz_cb_ = std::move(check_sz_cb);
+    exec_cb_ = std::move(exec_cb);
+    buffer_size_ = buffer_size;
+  }
+
 private:
   void UnregisterFd(int fd) {
     if (epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr) == -1) {
@@ -181,7 +202,10 @@ private:
   void CreateConnHandler(int conn_fd) {
     // 创建解包器（每个连接独立）
     auto unpacker = std::make_unique<containers::UnPacker>(
-        containers::HeadKey{0xE}, containers::TailKey{}, 1024);
+        std::forward<containers::HeadKey>(head_key_),
+        std::forward<containers::TailKey>(tail_key_),
+        std::forward<containers::DataSzCb>(data_sz_cb_),
+        std::forward<containers::CheckValidCb>(check_sz_cb_), 1024);
 
     // 创建TCP处理器
     auto handler = std::make_unique<TcpHandler>(conn_fd, std::move(unpacker));
@@ -190,27 +214,6 @@ private:
 
     // 注册新连接
     RegisterProtocol(conn_fd, std::move(handler), TriggerMode::kEt, false);
-  }
-
-  /// @brief 设置连接处理器参数
-  /// @param head_key
-  /// @param tail_key
-  /// @param data_sz_cb_
-  /// @param check_sz_cb_
-  /// @param exec_cb_
-  /// @param buffer_size
-  void SetConnHandlerParams(containers::HeadKey &&head_key,
-                            containers::TailKey &&tail_key,
-                            containers::DataSzCb data_sz_cb_ = nullptr,
-                            containers::CheckValidCb check_sz_cb_ = nullptr,
-                            ExecCb exec_cb_ = nullptr,
-                            size_t buffer_size = 1024) {
-    head_key_ = std::move(head_key);
-    tail_key_ = std::move(tail_key);
-    data_sz_cb_ = std::move(data_sz_cb_);
-    check_sz_cb_ = std::move(check_sz_cb_);
-    exec_cb_ = std::move(exec_cb_);
-    buffer_size_ = buffer_size;
   }
 
   // epoll与事件循环相关
