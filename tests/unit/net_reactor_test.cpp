@@ -40,19 +40,29 @@ int main() {
         }
       });
 
-  // // 创建UDP套接字
-  // int udp_fd = SocketCreator::CreateUdpSocket("0.0.0.0", 9090);
-  // if (udp_fd < 0) {
-  //   std::cerr << "Failed to create UDP socket\n";
-  //   return 1;
-  // }
+  // 创建UDP套接字
+  int udp_fd = SocketCreator::CreateUdpSocket("0.0.0.0", 9090);
+  if (udp_fd < 0) {
+    std::cerr << "Failed to create UDP socket\n";
+    return 1;
+  }
 
-  // // 为UDP创建处理器
-  // auto udp_handler = []() -> std::unique_ptr<ProtocolHandler> {
-  //   return nullptr;
-  // };
+  // 为UDP创建处理器
+  auto udp_unpacker = containers::UnPacker::CreateBasic(
+      containers::HeadKey{0xE, 0xD}, containers::TailKey{0xA}, 2048);
+  auto udp_handler =
+      std::make_unique<UdpHandler>(udp_fd, std::move(udp_unpacker));
+  udp_handler->SetCallback([](std::vector<std::vector<uint8_t>> &packs) {
+    for (const auto &pack : packs) {
+      std::cout << "Received Udp packet: ";
+      for (const auto &byte : pack) {
+        std::cout << std::hex << static_cast<int>(byte) << " ";
+      }
+      std::cout << std::dec << "\n";
+    }
+  });
 
-  // reactor.RegisterProtocol(udp_fd, udp_handler(), TriggerMode::kEt);
+  reactor.RegisterProtocol(udp_fd, std::move(udp_handler), TriggerMode::kEt);
 
   std::cout << "Server started. Listening on TCP:8080 and UDP:9090\n";
   std::cout << "Press Ctrl+C to exit...\n";

@@ -4,8 +4,9 @@
 #include <functional>
 #include <memory>
 #include <sys/epoll.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
-
 namespace net {
 
 /// @brief 业务执行回调类型定义
@@ -96,6 +97,45 @@ private:
       }
     }
   }
+};
+
+class UdpHandler : public ProtocolHandler {
+public:
+  UdpHandler(int fd, std::unique_ptr<containers::UnPacker> unpacker)
+      : fd_(fd), unpacker_(std::move(unpacker)), should_close_(false) {}
+
+  void HandleEvent(int epoll_fd, const Event &event) override {
+    if (event.event_flags & EventFlags::kError) {
+      should_close_ = true;
+      return;
+    }
+    if (event.event_flags & EventFlags::kReadable) {
+      auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
+      ssize_t len = recvfrom(event.fd, buffer, capacity, 0, nullptr, 0);
+      if (len == -1 || errno == EAGAIN || errno == EWOULDBLOCK) {
+        should_close_ = true;
+        LOGP_MSG("udp error on fd:%d", fd_);
+        return;
+      }
+      if (len == -1 || errno == ECONNREFUSED) {
+        should_close_ = true;
+        LOGP_MSG("udp error ECONNREFUSED on fd:%d", fd_);
+        return;
+      }
+      unpacker_->CommitWriteSize(len);
+      unpacker_->Get(packs_);
+      cb_(packs_);
+    }
+  };
+  bool ShouldClose() const override { return should_close_; }
+  void SetCallback(ExecCb cb) { cb_ = std::move(cb); }
+
+private:
+  const int fd_;
+  bool should_close_;
+  ExecCb cb_;
+  std::unique_ptr<containers::UnPacker> unpacker_;
+  std::vector<std::vector<uint8_t>> packs_;
 };
 
 } // namespace net

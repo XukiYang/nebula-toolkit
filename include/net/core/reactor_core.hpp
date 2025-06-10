@@ -201,7 +201,7 @@ private:
   /// @param conn_fd
   void CreateConnHandler(int conn_fd) {
     // 创建解包器（每个连接独立）
-    auto unpacker = std::make_unique<containers::UnPacker>(
+    auto unpacker = containers::UnPacker::CreateWithCallbacks(
         std::forward<containers::HeadKey>(head_key_),
         std::forward<containers::TailKey>(tail_key_),
         std::forward<containers::DataSzCb>(data_sz_cb_),
