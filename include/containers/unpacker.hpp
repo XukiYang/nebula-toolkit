@@ -30,32 +30,20 @@ class UnPacker : public RingBuffer {
   enum UnpackerModel { kNone, kHead, kHeadTail, KHeadTailCb };
 
 public:
-  /// @brief
-  /// @param head_key
-  /// @param tail_key
-  /// @param buffer_size
-  UnPacker(HeadKey &&head_key = {}, TailKey &&tail_key = {},
-           size_t buffer_size = 1024)
-      : RingBuffer(buffer_size), head_key_(std::move(head_key)),
-        tail_key_(std::move(tail_key)) {
-    unpacker_model_ = CheckModel();
-    LOGP_DEBUG("unpackermodel:%d", unpacker_model_);
+  static std::unique_ptr<UnPacker> CreateBasic(HeadKey &&h, TailKey &&t,
+                                               size_t s) {
+
+    // 此处直接返回unique_ptr不可行，智能指针模板无权访问内部构造，只能new再转unique_ptr
+    return std::unique_ptr<UnPacker>(
+        new UnPacker(std::move(h), std::move(t), s));
   }
 
-  /// @brief 基于单头定位符与头尾定位符以及回调的构造
-  /// @param head_key
-  /// @param tail_key
-  /// @param data_sz_cb
-  /// @param check_sz_cb
-  /// @param buffer_size
-  UnPacker(HeadKey &&head_key = {}, TailKey &&tail_key = {},
-           DataSzCb &&data_sz_cb = nullptr,
-           CheckValidCb &&check_sz_cb = nullptr, size_t buffer_size = 1024)
-      : RingBuffer(buffer_size), head_key_(std::move(head_key)),
-        data_sz_cb_(std::move(data_sz_cb)),
-        check_sz_cb_(std::move(check_sz_cb)), tail_key_(std::move(tail_key)) {
-    unpacker_model_ = CheckModel();
-    LOGP_DEBUG("unpackermodel:%d", unpacker_model_);
+  static std::unique_ptr<UnPacker> CreateWithCallbacks(HeadKey &&h, TailKey &&t,
+                                                       DataSzCb &&dc,
+                                                       CheckValidCb &&cc,
+                                                       size_t s) {
+    return std::unique_ptr<UnPacker>(new UnPacker(
+        std::move(h), std::move(t), std::move(dc), std::move(cc), s));
   }
 
   /// @brief 检查解包模式
@@ -97,6 +85,32 @@ public:
   };
 
 private:
+  /// @brief
+  /// @param head_key
+  /// @param tail_key
+  /// @param buffer_size
+  UnPacker(HeadKey &&head_key, TailKey &&tail_key, size_t buffer_size = 1024)
+      : RingBuffer(buffer_size), head_key_(std::move(head_key)),
+        tail_key_(std::move(tail_key)) {
+    unpacker_model_ = CheckModel();
+    LOGP_DEBUG("unpackermodel:%d", unpacker_model_);
+  }
+
+  /// @brief 基于单头定位符与头尾定位符以及回调的构造
+  /// @param head_key
+  /// @param tail_key
+  /// @param data_sz_cb
+  /// @param check_sz_cb
+  /// @param buffer_size
+  UnPacker(HeadKey &&head_key, TailKey &&tail_key, DataSzCb &&data_sz_cb,
+           CheckValidCb &&check_sz_cb, size_t buffer_size = 1024)
+      : RingBuffer(buffer_size), head_key_(std::move(head_key)),
+        data_sz_cb_(std::move(data_sz_cb)),
+        check_sz_cb_(std::move(check_sz_cb)), tail_key_(std::move(tail_key)) {
+    unpacker_model_ = CheckModel();
+    LOGP_DEBUG("unpackermodel:%d", unpacker_model_);
+  }
+
   /// @brief 解析数据包到引用
   /// @param read_data
   /// @return UnPackerResult
