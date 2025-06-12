@@ -2,6 +2,7 @@
 #include "thread_pool.hpp"
 #include <unordered_set>
 
+namespace threading {
 struct TimerTask {
   std::chrono::steady_clock::time_point exec_time;
   CallBack callback;
@@ -117,3 +118,4 @@ public:
     }
   };
 };
+}; // namespace threading
