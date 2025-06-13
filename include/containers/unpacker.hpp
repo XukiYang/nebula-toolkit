@@ -72,6 +72,8 @@ public:
         Write(reinterpret_cast<const std::byte *>(write_data), data_size);
     LOGP_DEBUG("write_ret:%d,AvailableToRead:%d", write_size,
                AvailableToRead());
+    if (read_data.size() > 0)
+      read_data.clear(); // 清空容器留存包，避免重复处理
     GetPack(read_data);
     return write_size;
   };
@@ -81,6 +83,8 @@ public:
   /// @return
   size_t Get(std::vector<std::vector<uint8_t>> &read_data) {
     LOGP_DEBUG("Get Pack,AvailableToRead:%d", AvailableToRead());
+    if (read_data.size() > 0)
+      read_data.clear(); // 清空容器留存包，避免重复处理
     return GetPack(read_data);
   };
 
