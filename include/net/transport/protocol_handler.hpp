@@ -128,11 +128,6 @@ public:
     if (event.event_flags & EventFlags::kReadable) {
       auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
       ssize_t len = recvfrom(event.fd, buffer, capacity, 0, nullptr, 0);
-      if (len == -1 || errno == EAGAIN || errno == EWOULDBLOCK) {
-        should_close_ = true;
-        LOGP_MSG("udp error on fd:%d", fd_);
-        return;
-      }
       if (len == -1 || errno == ECONNREFUSED) {
         should_close_ = true;
         LOGP_MSG("udp error ECONNREFUSED on fd:%d", fd_);

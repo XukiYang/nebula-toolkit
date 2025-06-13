@@ -41,14 +41,12 @@ public:
   /// @brief 添加套接字到epoll并注册协议处理器
   /// @param fd
   /// @param handler
-  /// @param mode
   /// @param is_listener
   void RegisterProtocol(int fd, std::unique_ptr<ProtocolHandler> handler,
-                        TriggerMode mode = TriggerMode::kEt,
                         bool is_listener = false) {
     // 配置epoll事件 水平触发或边缘触发
     epoll_event ev{};
-    ev.events = EPOLLIN | (mode == TriggerMode::kEt ? EPOLLET : 0);
+    ev.events = EPOLLIN | EPOLLET;
     ev.data.fd = fd;
 
     // 设置非阻塞模式
@@ -222,7 +220,7 @@ private:
     handler->SetCallback(exec_cb_);
 
     // 注册新连接
-    RegisterProtocol(conn_fd, std::move(handler), TriggerMode::kEt, false);
+    RegisterProtocol(conn_fd, std::move(handler));
   }
 
   // epoll与事件循环相关

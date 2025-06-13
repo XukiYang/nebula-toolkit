@@ -32,7 +32,7 @@ int main() {
   }
 
   // 注册TCP监听套接字
-  reactor.RegisterProtocol(tcp_fd, nullptr, TriggerMode::kEt, true);
+  reactor.RegisterProtocol(tcp_fd, nullptr, true);
   reactor.SetConnHandlerParams(
       {0xE, 0xD}, {0xA}, nullptr, nullptr,
       [](std::vector<std::vector<uint8_t>> &packs) -> void {
@@ -59,7 +59,7 @@ int main() {
     }
   });
 
-  reactor.RegisterProtocol(udp_fd, std::move(udp_handler), TriggerMode::kEt);
+  reactor.RegisterProtocol(udp_fd, std::move(udp_handler));
 
   std::cout << "Server started. Listening on TCP:8080 and UDP:9090\n";
   std::cout << "Press Ctrl+C to exit...\n";
