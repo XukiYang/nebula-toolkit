@@ -95,7 +95,7 @@ private:
             cb_(packs_);
             return 0;
           };
-          timer_shceduler_->ScheduleOnce(5000, timer_task);
+          timer_shceduler_->ScheduleOnce(0, timer_task);
         }
       } else if (n == 0) { // 对端关闭连接
         should_close_ = true;
@@ -126,21 +126,36 @@ public:
       return;
     }
     if (event.event_flags & EventFlags::kReadable) {
-      auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
-      ssize_t len = recvfrom(event.fd, buffer, capacity, 0, nullptr, 0);
-      if (len == -1 || errno == ECONNREFUSED) {
-        should_close_ = true;
-        LOGP_MSG("udp error ECONNREFUSED on fd:%d", fd_);
-        return;
-      }
-      unpacker_->CommitWriteSize(len);
-      unpacker_->Get(packs_);
+      while (true) {
+        auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
+        if (capacity == 0) {
+          LOGP_MSG("Buffer full on fd:%d,wirte space:%d,read space:%d", fd_,
+                   unpacker_->AvailableToWrite(), unpacker_->AvailableToRead());
+          break;
+        }
+        ssize_t len = recvfrom(event.fd, buffer, capacity, 0, nullptr, 0);
 
-      auto timer_task = [this]() {
-        cb_(packs_);
-        return 0;
-      };
-      timer_shceduler_->ScheduleOnce(5000, timer_task);
+        if (len == -1) {
+          // 读取完毕
+          if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            break;
+          }
+          // 发生错误
+          else {
+            LOGP_ERROR("udp error ECONNREFUSED on fd:%d,errno:%d", fd_, errno);
+            should_close_ = true;
+          }
+        }
+
+        unpacker_->CommitWriteSize(len);
+        unpacker_->Get(packs_);
+
+        auto timer_task = [this]() {
+          cb_(packs_);
+          return 0;
+        };
+        timer_shceduler_->ScheduleOnce(0, timer_task);
+      }
     }
   };
   bool ShouldClose() const override { return should_close_; }
