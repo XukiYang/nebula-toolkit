@@ -1,23 +1,28 @@
 #include "net/core/reactor_core.hpp"
 #include "net/transport/socket_creator.hpp"
+#include "threading/timer_scheduler.hpp"
 #include <csignal>
 #include <iostream>
 
 std::atomic<bool> running{true};
 
-void signalHandler(int signal) {
-  if (signal == SIGINT) {
-    running = false;
-  }
-}
+// 注释便于调试
+// void signalHandler(int signal) {
+//   if (signal == SIGINT) {
+//     running = false;
+//   }
+// }
+// 注册信号处理
+// signal(SIGINT, signalHandler);
 
 int main() {
   using namespace net;
 
-  // 注册信号处理
-  signal(SIGINT, signalHandler);
-
   ReactorCore reactor;
+
+  // 定时线程池依赖注入
+  auto timer_scheduler = std::make_shared<threading::TimerScheduler>();
+  reactor.SetTimerScheduler(std::move(timer_scheduler));
 
   // 创建TCP服务器套接字
   int tcp_fd = SocketCreator::CreateTcpSocket("0.0.0.0", 8080, true, SOMAXCONN);
@@ -32,11 +37,7 @@ int main() {
       {0xE, 0xD}, {0xA}, nullptr, nullptr,
       [](std::vector<std::vector<uint8_t>> &packs) -> void {
         for (const auto &pack : packs) {
-          std::cout << "Received TCP packet: ";
-          for (const auto &byte : pack) {
-            std::cout << std::hex << static_cast<int>(byte) << " ";
-          }
-          std::cout << std::dec << "\n";
+          LOG_VECTOR(pack);
         }
       });
 
@@ -54,11 +55,7 @@ int main() {
       std::make_unique<UdpHandler>(udp_fd, std::move(udp_unpacker));
   udp_handler->SetCallback([](std::vector<std::vector<uint8_t>> &packs) {
     for (const auto &pack : packs) {
-      std::cout << "Received Udp packet: ";
-      for (const auto &byte : pack) {
-        std::cout << std::hex << static_cast<int>(byte) << " ";
-      }
-      std::cout << std::dec << "\n";
+      LOG_VECTOR(pack);
     }
   });
 

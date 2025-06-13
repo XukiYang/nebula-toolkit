@@ -1,5 +1,6 @@
 #pragma once
 #include "../../logkit/logkit.hpp"
+#include "../../threading/timer_scheduler.hpp"
 #include "../transport/enums.hpp"
 #include "../transport/protocol_handler.hpp"
 #include <arpa/inet.h>
@@ -76,6 +77,7 @@ public:
   /// @brief 事件循环机制
   void Run() {
     epoll_event events[max_events_];
+    timer_shceduler_->Start();
     while (running_) {
       // 等待事件
       int nfds = epoll_wait(epoll_fd_, events, max_events_, -1);
@@ -120,7 +122,7 @@ public:
         auto it = protocol_handlers_.find(fd);
         if (it != protocol_handlers_.end()) {
           try {
-            it->second->HandleEvent(epoll_fd_, ev);
+            it->second->HandleEvent(epoll_fd_, ev, timer_shceduler_);
           } catch (const std::exception &e) {
             LOGP_MSG("Error handling fd:%d - %s", fd, e.what());
             UnregisterFd(fd);
@@ -157,6 +159,13 @@ public:
     exec_cb_ = std::move(exec_cb);
     buffer_size_ = buffer_size;
   }
+
+  /// @brief 注入定时线程池依赖
+  /// @param timer_shceduler
+  void SetTimerScheduler(
+      std::shared_ptr<threading::TimerScheduler> timer_shceduler) {
+    timer_shceduler_ = std::move(timer_shceduler);
+  };
 
 private:
   void UnregisterFd(int fd) {
@@ -234,6 +243,9 @@ private:
   // 协议处理器映射与TCP监听套接字
   std::unordered_map<int, std::unique_ptr<ProtocolHandler>> protocol_handlers_;
   std::unordered_set<int> listeners_;
+
+  // 定时线程池依赖
+  std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
 };
 
 } // namespace net
