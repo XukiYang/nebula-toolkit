@@ -192,6 +192,7 @@ public:
     if (level != MSG) {
       RotateFileIfNeeded();
       file_manager_.file << oss.str();
+      file_manager_.file.flush();
     }
   }
 
@@ -221,6 +222,7 @@ public:
     if (level != MSG) {
       RotateFileIfNeeded();
       file_manager_.file << oss.str();
+      file_manager_.file.flush();
     }
   }
   template <typename T>
