@@ -182,9 +182,9 @@ public:
     std::ostringstream oss;
     oss << CurrentTime() << " " << LevelToString(level);
     if (config_.print_func)
-      oss << func << " ";
+      oss << "[" << func << " ";
     if (config_.print_line)
-      oss << "L" << line << " ";
+      oss << "L" << line << "] ";
     ((oss << std::forward<Args>(args)), ...) << "\n";
 
     std::cout << oss.str();
@@ -212,9 +212,9 @@ public:
     std::ostringstream oss;
     oss << CurrentTime() << " " << LevelToString(level);
     if (config_.print_func)
-      oss << func << " ";
+      oss << "[" << func << " ";
     if (config_.print_line)
-      oss << "L" << line << " ";
+      oss << "L" << line << "] ";
     oss << buffer << "\n";
 
     std::cout << oss.str();
@@ -232,16 +232,16 @@ public:
     std::ostringstream oss;
     oss << CurrentTime() << " " << LevelToString(level);
     if (config_.print_func)
-      oss << func << " ";
+      oss << "[" << func << " ";
     if (config_.print_line)
-      oss << "L" << line << " ";
+      oss << "L" << line << "] ";
 
     for (size_t i = 0; i < vector.size(); ++i) {
       if (i != 0) // 首行不加
         oss << ",";
-      if(sizeof(vector[i])==1)
+      if (sizeof(vector[i]) == 1)
         oss << (size_t)vector[i];
-      else  
+      else
         oss << vector[i];
     }
     oss << "\n";
