@@ -15,7 +15,7 @@
 #include <thread>
 #include <vector>
 
-class LogKit {
+class Logger {
 public:
   enum LogLevel { MSG, INFO, WARN, DEBUG, ERROR };
 
@@ -156,13 +156,13 @@ private:
   }
 
 public:
-  LogKit() : ini_reader_(std::make_unique<IniReader>(CONFIG_PATH)) {
+  Logger() : ini_reader_(std::make_unique<IniReader>(CONFIG_PATH)) {
     UpdateConfig();
     config_monitor_ =
         std::make_unique<std::thread>([this] { MonitorConfigChanges(); });
   }
 
-  ~LogKit() {
+  ~Logger() {
     running_ = false;
     if (config_monitor_ && config_monitor_->joinable()) {
       config_monitor_->join();
@@ -249,38 +249,38 @@ public:
     std::cout << oss.str();
   }
 
-  static LogKit &Instance() {
-    static LogKit instance;
+  static Logger &Instance() {
+    static Logger instance;
     return instance;
   }
 };
 
 #define LOG_MSG(...)                                                           \
-  LogKit::Instance().LogCout(LogKit::MSG, __func__, __LINE__, __VA_ARGS__)
+  Logger::Instance().LogCout(Logger::MSG, __func__, __LINE__, __VA_ARGS__)
 #define LOG_INFO(...)                                                          \
-  LogKit::Instance().LogCout(LogKit::INFO, __func__, __LINE__, __VA_ARGS__)
+  Logger::Instance().LogCout(Logger::INFO, __func__, __LINE__, __VA_ARGS__)
 #define LOG_WARN(...)                                                          \
-  LogKit::Instance().LogCout(LogKit::WARN, __func__, __LINE__, __VA_ARGS__)
+  Logger::Instance().LogCout(Logger::WARN, __func__, __LINE__, __VA_ARGS__)
 #define LOG_DEBUG(...)                                                         \
-  LogKit::Instance().LogCout(LogKit::DEBUG, __func__, __LINE__, __VA_ARGS__)
+  Logger::Instance().LogCout(Logger::DEBUG, __func__, __LINE__, __VA_ARGS__)
 #define LOG_ERROR(...)                                                         \
-  LogKit::Instance().LogCout(LogKit::ERROR, __func__, __LINE__, __VA_ARGS__)
+  Logger::Instance().LogCout(Logger::ERROR, __func__, __LINE__, __VA_ARGS__)
 
 #define LOGP_MSG(fmt, ...)                                                     \
-  LogKit::Instance().LogPrint(LogKit::MSG, __func__, __LINE__, fmt,            \
+  Logger::Instance().LogPrint(Logger::MSG, __func__, __LINE__, fmt,            \
                               ##__VA_ARGS__)
 #define LOGP_INFO(fmt, ...)                                                    \
-  LogKit::Instance().LogPrint(LogKit::INFO, __func__, __LINE__, fmt,           \
+  Logger::Instance().LogPrint(Logger::INFO, __func__, __LINE__, fmt,           \
                               ##__VA_ARGS__)
 #define LOGP_WARN(fmt, ...)                                                    \
-  LogKit::Instance().LogPrint(LogKit::WARN, __func__, __LINE__, fmt,           \
+  Logger::Instance().LogPrint(Logger::WARN, __func__, __LINE__, fmt,           \
                               ##__VA_ARGS__)
 #define LOGP_DEBUG(fmt, ...)                                                   \
-  LogKit::Instance().LogPrint(LogKit::DEBUG, __func__, __LINE__, fmt,          \
+  Logger::Instance().LogPrint(Logger::DEBUG, __func__, __LINE__, fmt,          \
                               ##__VA_ARGS__)
 #define LOGP_ERROR(fmt, ...)                                                   \
-  LogKit::Instance().LogPrint(LogKit::ERROR, __func__, __LINE__, fmt,          \
+  Logger::Instance().LogPrint(Logger::ERROR, __func__, __LINE__, fmt,          \
                               ##__VA_ARGS__)
 
 #define LOG_VECTOR(vector)                                                     \
-  LogKit::Instance().LogVector(LogKit::MSG, __func__, __LINE__, vector)
+  Logger::Instance().LogVector(Logger::MSG, __func__, __LINE__, vector)

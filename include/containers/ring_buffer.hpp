@@ -1,5 +1,5 @@
 #pragma once
-#include "../logkit/logkit.hpp"
+#include "../logger/logger.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
