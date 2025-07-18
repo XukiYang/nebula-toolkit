@@ -40,7 +40,7 @@ public:
 
     const size_t available = AvailableToWrite();
     const size_t write_data_size = write_data.size() * sizeof(T);
-    LOG_MSG(available, write_data_size);
+    // LOG_MSG(available, write_data_size);
     if (write_data_size > available) {
       return (size_t)Result::kErrorFull; // 可写空间不足
     }

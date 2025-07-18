@@ -1,8 +1,9 @@
 #pragma once
+#include "../containers/ring_buffer.hpp"
 #include "./ini_reader.hpp"
-
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdarg>
 #include <ctime>
 #include <fstream>
@@ -23,6 +24,7 @@ private:
   static constexpr const char *CONFIG_PATH = "./configs/log_config.ini";
   static constexpr const char *GLOBAL_SECTION = "LOG_GLOBAL";
   static constexpr const char *LEVEL_SECTION = "LOG_LEVEL";
+  static constexpr const uint64_t RING_BUFFER_SIZE = 1024 * 10;
 
   struct Config {
     size_t max_file_size = 1024 * 1024; // 1MB
@@ -45,10 +47,17 @@ private:
 
   std::mutex mutex_;
   FileManager file_manager_;
+
   Config config_;
+  std::unique_ptr<IniReader> ini_reader_;
+
   std::atomic<bool> running_{true};
   std::unique_ptr<std::thread> config_monitor_;
-  std::unique_ptr<IniReader> ini_reader_;
+
+  std::mutex ring_buffer_mutex_;
+  std::condition_variable cv;
+  std::unique_ptr<containers::RingBuffer> ring_buffer_; // async buffer
+  std::unique_ptr<std::thread> cust_thread_;
 
   void UpdateConfig() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -155,11 +164,31 @@ private:
     }
   }
 
+  void CustThreadProc() {
+    const uint16_t READ_SIZE = 1024;
+    std::vector<uint8_t> read_data(READ_SIZE);
+    while (true) {
+      std::unique_lock<std::mutex> lock(ring_buffer_mutex_);
+      cv.wait(lock, [&] { return !ring_buffer_->IsEmpty(); });
+      // not null
+      ring_buffer_->Read(read_data, READ_SIZE);
+
+      // out to file
+      file_manager_.file.write(reinterpret_cast<const char *>(read_data.data()),
+                               read_data.size() * sizeof(uint8_t));
+      file_manager_.file.flush();
+    }
+  };
+
 public:
-  Logger() : ini_reader_(std::make_unique<IniReader>(CONFIG_PATH)) {
+  Logger()
+      : ini_reader_(std::make_unique<IniReader>(CONFIG_PATH)),
+        ring_buffer_(
+            std::make_unique<containers::RingBuffer>(RING_BUFFER_SIZE)) {
     UpdateConfig();
     config_monitor_ =
         std::make_unique<std::thread>([this] { MonitorConfigChanges(); });
+    cust_thread_ = std::make_unique<std::thread>([this] { CustThreadProc(); });
   }
 
   ~Logger() {
@@ -167,6 +196,11 @@ public:
     if (config_monitor_ && config_monitor_->joinable()) {
       config_monitor_->join();
     }
+
+    if (cust_thread_ && cust_thread_->joinable()) {
+      cust_thread_->join();
+    }
+
     if (file_manager_.file.is_open()) {
       file_manager_.file.close();
     }
@@ -191,8 +225,11 @@ public:
 
     if (level != MSG) {
       RotateFileIfNeeded();
-      file_manager_.file << oss.str();
-      file_manager_.file.flush();
+      std::lock_guard<std::mutex> lock(ring_buffer_mutex_);
+      ring_buffer_->Write(
+          reinterpret_cast<const std::byte *>(oss.str().c_str()),
+          oss.str().length());
+      cv.notify_one();
     }
   }
 
@@ -221,14 +258,16 @@ public:
 
     if (level != MSG) {
       RotateFileIfNeeded();
-      file_manager_.file << oss.str();
-      file_manager_.file.flush();
+      std::lock_guard<std::mutex> lock(ring_buffer_mutex_);
+      ring_buffer_->Write(
+          reinterpret_cast<const std::byte *>(oss.str().c_str()),
+          oss.str().length());
+      cv.notify_one();
     }
   }
   template <typename T>
   void LogVector(LogLevel level, const char *func, size_t line,
                  const std::vector<T> &vector) {
-
     std::ostringstream oss;
     oss << CurrentTime() << " " << LevelToString(level);
     if (config_.print_func)
