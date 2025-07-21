@@ -1,5 +1,5 @@
 #pragma once
-#include "../logger/logger.hpp"
+// #include "../logger/logger.hpp" 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -9,6 +9,7 @@
 #include <mutex>
 #include <string.h>
 #include <vector>
+
 namespace containers {
 
 /// @brief 环形缓冲区
@@ -118,6 +119,12 @@ public:
   /// @param bytes_to_write
   /// @return
   size_t Write(const std::byte *write_ptr, size_t bytes_to_write);
+
+  // /// @brief 按照kb读取数据
+  // /// @param read_ptr
+  // /// @param kbs
+  // /// @return
+  // size_t Read(std::byte *read_ptr, uint8_t kbs);
 
 public:
   /// @brief hex打印缓冲区

@@ -1,6 +1,7 @@
 #pragma once
 #include "../containers/ring_buffer.hpp"
 #include "./ini_reader.hpp"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -24,7 +25,7 @@ private:
   static constexpr const char *CONFIG_PATH = "./configs/log_config.ini";
   static constexpr const char *GLOBAL_SECTION = "LOG_GLOBAL";
   static constexpr const char *LEVEL_SECTION = "LOG_LEVEL";
-  static constexpr const uint64_t RING_BUFFER_SIZE = 1024 * 10;
+  static constexpr const uint64_t RING_BUFFER_SIZE = 1024 * 64; // 64kb
 
   struct Config {
     size_t max_file_size = 1024 * 1024; // 1MB
@@ -51,13 +52,15 @@ private:
   Config config_;
   std::unique_ptr<IniReader> ini_reader_;
 
-  std::atomic<bool> running_{true};
+  std::atomic<bool> monitor_config_thread_running_{true};
   std::unique_ptr<std::thread> config_monitor_;
 
   std::mutex ring_buffer_mutex_;
   std::condition_variable cv;
   std::unique_ptr<containers::RingBuffer> ring_buffer_; // async buffer
   std::unique_ptr<std::thread> cust_thread_;
+
+  std::atomic<bool> cust_thread_running_{true};
 
   void UpdateConfig() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -81,7 +84,7 @@ private:
 
   void MonitorConfigChanges() {
     time_t last_mod = 0;
-    while (running_) {
+    while (monitor_config_thread_running_) {
       struct stat file_stat;
       if (stat(CONFIG_PATH, &file_stat) == 0) {
         if (file_stat.st_mtime != last_mod) {
@@ -157,7 +160,6 @@ private:
     std::string filename = config_.log_directory + '/' +
                            file_manager_.current_date + "_" +
                            std::to_string(file_manager_.current_index) + ".log";
-
     file_manager_.file.open(filename, std::ios::app);
     if (!file_manager_.file.is_open()) {
       throw std::runtime_error("Cannot open log file: " + filename);
@@ -165,19 +167,37 @@ private:
   }
 
   void CustThreadProc() {
-    const uint16_t READ_SIZE = 1024;
-    std::vector<uint8_t> read_data(READ_SIZE);
-    while (true) {
-      std::unique_lock<std::mutex> lock(ring_buffer_mutex_);
-      cv.wait(lock, [&] { return !ring_buffer_->IsEmpty(); });
-      // not null
-      ring_buffer_->Read(read_data, READ_SIZE);
+    const size_t BATCH_SIZE = 4096;
+    const size_t MAX_FLUSH_BYTES = 65536; // 最大flush字节
+    size_t CUR_WRITE_BYTES = 0;
+    std::vector<uint8_t> read_buffer(BATCH_SIZE); // 1copy 缓冲容器
 
-      // out to file
-      file_manager_.file.write(reinterpret_cast<const char *>(read_data.data()),
-                               read_data.size() * sizeof(uint8_t));
-      file_manager_.file.flush();
+    while (cust_thread_running_.load()) {
+      std::unique_lock<std::mutex> lock(ring_buffer_mutex_);
+
+      if (cv.wait_for(lock, std::chrono::milliseconds(100),
+                      [&] { return !ring_buffer_->IsEmpty(); })) {
+        // 限制最大块字节，选取最小可读字节
+        size_t available_to_read = ring_buffer_->AvailableToRead();
+        size_t min_read_bytes = std::min(available_to_read, BATCH_SIZE);
+
+        if (min_read_bytes > 0) {
+          ring_buffer_->Read(read_buffer, min_read_bytes);
+          RotateFileIfNeeded();
+          file_manager_.file.write(
+              reinterpret_cast<const char *>(read_buffer.data()),
+              min_read_bytes * sizeof(uint8_t));
+
+          CUR_WRITE_BYTES += min_read_bytes;
+        }
+        // 超过最大写入字节 flush
+        if (min_read_bytes >= MAX_FLUSH_BYTES) {
+          file_manager_.file.flush();
+        }
+      }
     }
+    // 退出循环 flush
+    file_manager_.file.flush();
   };
 
 public:
@@ -192,7 +212,9 @@ public:
   }
 
   ~Logger() {
-    running_ = false;
+    monitor_config_thread_running_ = false;
+    cust_thread_running_ = false;
+
     if (config_monitor_ && config_monitor_->joinable()) {
       config_monitor_->join();
     }
@@ -224,7 +246,6 @@ public:
     std::cout << oss.str();
 
     if (level != MSG) {
-      RotateFileIfNeeded();
       std::lock_guard<std::mutex> lock(ring_buffer_mutex_);
       ring_buffer_->Write(
           reinterpret_cast<const std::byte *>(oss.str().c_str()),
@@ -257,7 +278,6 @@ public:
     std::cout << oss.str();
 
     if (level != MSG) {
-      RotateFileIfNeeded();
       std::lock_guard<std::mutex> lock(ring_buffer_mutex_);
       ring_buffer_->Write(
           reinterpret_cast<const std::byte *>(oss.str().c_str()),
