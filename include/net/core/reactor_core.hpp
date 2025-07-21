@@ -40,14 +40,12 @@ public:
   /// @brief 添加套接字到epoll并注册协议处理器
   /// @param fd
   /// @param handler
-  /// @param mode
   /// @param is_listener
   void RegisterProtocol(int fd, std::unique_ptr<ProtocolHandler> handler,
-                        TriggerMode mode = TriggerMode::kEt,
                         bool is_listener = false) {
     // 配置epoll事件 水平触发或边缘触发
     epoll_event ev{};
-    ev.events = EPOLLIN | (mode == TriggerMode::kEt ? EPOLLET : 0);
+    ev.events = EPOLLIN | EPOLLET;
     ev.data.fd = fd;
 
     // 设置非阻塞模式
@@ -76,6 +74,7 @@ public:
   /// @brief 事件循环机制
   void Run() {
     epoll_event events[max_events_];
+    timer_shceduler_->Start();
     while (running_) {
       // 等待事件
       int nfds = epoll_wait(epoll_fd_, events, max_events_, -1);
@@ -120,7 +119,7 @@ public:
         auto it = protocol_handlers_.find(fd);
         if (it != protocol_handlers_.end()) {
           try {
-            it->second->HandleEvent(epoll_fd_, ev);
+            it->second->HandleEvent(epoll_fd_, ev, timer_shceduler_);
           } catch (const std::exception &e) {
             LOGP_MSG("Error handling fd:%d - %s", fd, e.what());
             UnregisterFd(fd);
@@ -157,6 +156,13 @@ public:
     exec_cb_ = std::move(exec_cb);
     buffer_size_ = buffer_size;
   }
+
+  /// @brief 注入定时线程池依赖
+  /// @param timer_shceduler
+  void SetTimerScheduler(
+      std::shared_ptr<threading::TimerScheduler> timer_shceduler) {
+    timer_shceduler_ = std::move(timer_shceduler);
+  };
 
 private:
   void UnregisterFd(int fd) {
@@ -213,7 +219,7 @@ private:
     handler->SetCallback(exec_cb_);
 
     // 注册新连接
-    RegisterProtocol(conn_fd, std::move(handler), TriggerMode::kEt, false);
+    RegisterProtocol(conn_fd, std::move(handler));
   }
 
   // epoll与事件循环相关
@@ -234,6 +240,9 @@ private:
   // 协议处理器映射与TCP监听套接字
   std::unordered_map<int, std::unique_ptr<ProtocolHandler>> protocol_handlers_;
   std::unordered_set<int> listeners_;
+
+  // 定时线程池依赖
+  std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
 };
 
 } // namespace net

@@ -1,6 +1,7 @@
 #pragma once
 #include "thread_pool.hpp"
 #include <unordered_set>
+#include "../logkit/logkit.hpp"
 
 namespace threading {
 struct TimerTask {
@@ -27,9 +28,7 @@ private:
 public:
   explicit TimerScheduler(
       size_t thread_count = std::thread::hardware_concurrency())
-      : thread_pool_(std::make_unique<ThreadPool>(thread_count)){
-
-        };
+      : thread_pool_(std::make_unique<ThreadPool>(thread_count)){};
   ~TimerScheduler() {
     Stop();
     if (scheduler_thread_ && scheduler_thread_->joinable()) {

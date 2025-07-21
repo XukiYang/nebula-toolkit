@@ -19,7 +19,9 @@ using ExecCb = std::function<void(std::vector<std::vector<uint8_t>> &packs)>;
 /// 通过继承此类实现具体协议的处理逻辑
 class ProtocolHandler {
 public:
-  virtual void HandleEvent(int epoll_fd, const Event &event) = 0;
+  virtual void
+  HandleEvent(int epoll_fd, const Event &event,
+              std::shared_ptr<threading::TimerScheduler> timer_shceduler) = 0;
   virtual bool ShouldClose() const { return false; }
   virtual ~ProtocolHandler() = default;
 };
@@ -33,7 +35,12 @@ public:
   void SetCallback(ExecCb cb) { cb_ = std::move(cb); }
   bool ShouldClose() const override { return should_close_; }
 
-  void HandleEvent(int epoll_fd, const Event &event) override {
+  void HandleEvent(
+      int epoll_fd, const Event &event,
+      std::shared_ptr<threading::TimerScheduler> timer_shceduler) override {
+
+    timer_shceduler_ = std::move(timer_shceduler);
+
     if (event.fd != fd_)
       return;
 
@@ -63,6 +70,7 @@ private:
   ExecCb cb_;
   std::unique_ptr<containers::UnPacker> unpacker_;
   std::vector<std::vector<uint8_t>> packs_;
+  std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
 
   void ProcessReadableEvent() {
     while (true) {
@@ -83,7 +91,11 @@ private:
         unpacker_->Get(packs_);
 
         if (!packs_.empty() && cb_) {
-          cb_(packs_);
+          auto timer_task = [this]() {
+            cb_(packs_);
+            return 0;
+          };
+          timer_shceduler_->ScheduleOnce(0, timer_task);
         }
       } else if (n == 0) { // 对端关闭连接
         should_close_ = true;
@@ -104,27 +116,46 @@ public:
   UdpHandler(int fd, std::unique_ptr<containers::UnPacker> unpacker)
       : fd_(fd), unpacker_(std::move(unpacker)), should_close_(false) {}
 
-  void HandleEvent(int epoll_fd, const Event &event) override {
+  void HandleEvent(
+      int epoll_fd, const Event &event,
+      std::shared_ptr<threading::TimerScheduler> timer_shceduler) override {
+    timer_shceduler_ = std::move(timer_shceduler);
+
     if (event.event_flags & EventFlags::kError) {
       should_close_ = true;
       return;
     }
     if (event.event_flags & EventFlags::kReadable) {
-      auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
-      ssize_t len = recvfrom(event.fd, buffer, capacity, 0, nullptr, 0);
-      if (len == -1 || errno == EAGAIN || errno == EWOULDBLOCK) {
-        should_close_ = true;
-        LOGP_MSG("udp error on fd:%d", fd_);
-        return;
+      while (true) {
+        auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
+        if (capacity == 0) {
+          LOGP_MSG("Buffer full on fd:%d,wirte space:%d,read space:%d", fd_,
+                   unpacker_->AvailableToWrite(), unpacker_->AvailableToRead());
+          break;
+        }
+        ssize_t len = recvfrom(event.fd, buffer, capacity, 0, nullptr, 0);
+
+        if (len == -1) {
+          // 读取完毕
+          if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            break;
+          }
+          // 发生错误
+          else {
+            LOGP_ERROR("udp error ECONNREFUSED on fd:%d,errno:%d", fd_, errno);
+            should_close_ = true;
+          }
+        }
+
+        unpacker_->CommitWriteSize(len);
+        unpacker_->Get(packs_);
+
+        auto timer_task = [this]() {
+          cb_(packs_);
+          return 0;
+        };
+        timer_shceduler_->ScheduleOnce(0, timer_task);
       }
-      if (len == -1 || errno == ECONNREFUSED) {
-        should_close_ = true;
-        LOGP_MSG("udp error ECONNREFUSED on fd:%d", fd_);
-        return;
-      }
-      unpacker_->CommitWriteSize(len);
-      unpacker_->Get(packs_);
-      cb_(packs_);
     }
   };
   bool ShouldClose() const override { return should_close_; }
@@ -136,6 +167,7 @@ private:
   ExecCb cb_;
   std::unique_ptr<containers::UnPacker> unpacker_;
   std::vector<std::vector<uint8_t>> packs_;
+  std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
 };
 
 } // namespace net
