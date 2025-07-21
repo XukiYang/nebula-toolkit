@@ -17,6 +17,36 @@
 #include <thread>
 #include <vector>
 
+namespace configs {
+struct LogGlobal {
+  size_t max_file_size = 1024 * 1024; // 1MB
+  bool print_line = false;
+  bool print_func = false;
+  bool print_time = false;
+  std::string log_directory;
+};
+
+struct LogAsync {
+  size_t ring_buffer_size_kb = 64 * 1024;
+  size_t batch_size_kb = 4 * 1024;
+  size_t max_flush_size = 64 * 1024;
+};
+
+struct LogLevel {
+  bool msg = false;
+  bool info = false;
+  bool warn = false;
+  bool debug = false;
+  bool error = false;
+};
+}; // namespace configs
+
+struct FileManager {
+  std::ofstream file;
+  std::string current_date;
+  size_t current_index = 0;
+};
+
 class Logger {
 public:
   enum LogLevel { MSG, INFO, WARN, DEBUG, ERROR };
@@ -24,32 +54,17 @@ public:
 private:
   static constexpr const char *CONFIG_PATH = "./configs/log_config.ini";
   static constexpr const char *GLOBAL_SECTION = "LOG_GLOBAL";
+  static constexpr const char *ASYNC_SECTION = "LOG_GLOBAL";
   static constexpr const char *LEVEL_SECTION = "LOG_LEVEL";
-  static constexpr const uint64_t RING_BUFFER_SIZE = 1024 * 64; // 64kb
-
-  struct Config {
-    size_t max_file_size = 1024 * 1024; // 1MB
-    bool print_line = false;
-    bool print_func = false;
-    bool print_time = false;
-    std::string log_directory;
-    bool level_msg = false;
-    bool level_info = false;
-    bool level_warn = false;
-    bool level_debug = false;
-    bool level_error = false;
-  };
-
-  struct FileManager {
-    std::ofstream file;
-    std::string current_date;
-    size_t current_index = 0;
-  };
+  // static constexpr const uint64_t RING_BUFFER_SIZE = 1024 * 64; // 64kb
 
   std::mutex mutex_;
   FileManager file_manager_;
 
-  Config config_;
+  configs::LogGlobal log_global_config_;
+  configs::LogAsync log_async_config_;
+  configs::LogLevel log_level_config_;
+
   std::unique_ptr<IniReader> ini_reader_;
 
   std::atomic<bool> monitor_config_thread_running_{true};
@@ -64,22 +79,33 @@ private:
 
   void UpdateConfig() {
     std::lock_guard<std::mutex> lock(mutex_);
-
+    // LOG_GLOBAL
     ini_reader_->GetValue(GLOBAL_SECTION, "max_file_size_kb",
-                          config_.max_file_size);
-    config_.max_file_size *= 1024; // KB to bytes
-
-    ini_reader_->GetValue(GLOBAL_SECTION, "print_line", config_.print_line);
-    ini_reader_->GetValue(GLOBAL_SECTION, "print_func", config_.print_func);
-    ini_reader_->GetValue(GLOBAL_SECTION, "print_time", config_.print_time);
+                          log_global_config_.max_file_size);
+    log_global_config_.max_file_size *= 1024; // KB to bytes
+    ini_reader_->GetValue(GLOBAL_SECTION, "print_line",
+                          log_global_config_.print_line);
+    ini_reader_->GetValue(GLOBAL_SECTION, "print_func",
+                          log_global_config_.print_func);
+    ini_reader_->GetValue(GLOBAL_SECTION, "print_time",
+                          log_global_config_.print_time);
     ini_reader_->GetValue(GLOBAL_SECTION, "log_directory",
-                          config_.log_directory);
+                          log_global_config_.log_directory);
 
-    ini_reader_->GetValue(LEVEL_SECTION, "msg", config_.level_msg);
-    ini_reader_->GetValue(LEVEL_SECTION, "info", config_.level_info);
-    ini_reader_->GetValue(LEVEL_SECTION, "warn", config_.level_warn);
-    ini_reader_->GetValue(LEVEL_SECTION, "debug", config_.level_debug);
-    ini_reader_->GetValue(LEVEL_SECTION, "error", config_.level_error);
+    // LOG_ASYNC
+    ini_reader_->GetValue(ASYNC_SECTION, "ring_buffer_size_kb",
+                          log_async_config_.ring_buffer_size_kb);
+    ini_reader_->GetValue(ASYNC_SECTION, "batch_size_kb",
+                          log_async_config_.batch_size_kb);
+    ini_reader_->GetValue(ASYNC_SECTION, "max_flush_size",
+                          log_async_config_.max_flush_size);
+
+    // LOG_LEVEL
+    ini_reader_->GetValue(LEVEL_SECTION, "msg", log_level_config_.msg);
+    ini_reader_->GetValue(LEVEL_SECTION, "info", log_level_config_.info);
+    ini_reader_->GetValue(LEVEL_SECTION, "warn", log_level_config_.warn);
+    ini_reader_->GetValue(LEVEL_SECTION, "debug", log_level_config_.debug);
+    ini_reader_->GetValue(LEVEL_SECTION, "error", log_level_config_.error);
   }
 
   void MonitorConfigChanges() {
@@ -99,15 +125,15 @@ private:
   bool ShouldLog(LogLevel level) const {
     switch (level) {
     case MSG:
-      return config_.level_msg;
+      return log_level_config_.msg;
     case INFO:
-      return config_.level_info;
+      return log_level_config_.info;
     case WARN:
-      return config_.level_warn;
+      return log_level_config_.warn;
     case DEBUG:
-      return config_.level_debug;
+      return log_level_config_.debug;
     case ERROR:
-      return config_.level_error;
+      return log_level_config_.error;
     default:
       return false;
     }
@@ -146,7 +172,7 @@ private:
       file_manager_.current_date = date;
       file_manager_.current_index = 0;
       OpenNewFile();
-    } else if (file_manager_.file.tellp() > config_.max_file_size) {
+    } else if (file_manager_.file.tellp() > log_global_config_.max_file_size) {
       file_manager_.current_index++;
       OpenNewFile();
     }
@@ -157,7 +183,7 @@ private:
       file_manager_.file.close();
     }
 
-    std::string filename = config_.log_directory + '/' +
+    std::string filename = log_global_config_.log_directory + '/' +
                            file_manager_.current_date + "_" +
                            std::to_string(file_manager_.current_index) + ".log";
     file_manager_.file.open(filename, std::ios::app);
@@ -167,10 +193,9 @@ private:
   }
 
   void CustThreadProc() {
-    const size_t BATCH_SIZE = 4096;
-    const size_t MAX_FLUSH_BYTES = 65536; // 最大flush字节
-    size_t CUR_WRITE_BYTES = 0;
-    std::vector<uint8_t> read_buffer(BATCH_SIZE); // 1copy 缓冲容器
+    size_t cur_write_bytes = 0;
+    std::vector<uint8_t> read_buffer(
+        log_async_config_.batch_size_kb); // 1copy 缓冲容器
 
     while (cust_thread_running_.load()) {
       std::unique_lock<std::mutex> lock(ring_buffer_mutex_);
@@ -179,7 +204,8 @@ private:
                       [&] { return !ring_buffer_->IsEmpty(); })) {
         // 限制最大块字节，选取最小可读字节
         size_t available_to_read = ring_buffer_->AvailableToRead();
-        size_t min_read_bytes = std::min(available_to_read, BATCH_SIZE);
+        size_t min_read_bytes =
+            std::min(available_to_read, log_async_config_.batch_size_kb);
 
         if (min_read_bytes > 0) {
           ring_buffer_->Read(read_buffer, min_read_bytes);
@@ -188,10 +214,10 @@ private:
               reinterpret_cast<const char *>(read_buffer.data()),
               min_read_bytes * sizeof(uint8_t));
 
-          CUR_WRITE_BYTES += min_read_bytes;
+          cur_write_bytes += min_read_bytes;
         }
         // 超过最大写入字节 flush
-        if (min_read_bytes >= MAX_FLUSH_BYTES) {
+        if (min_read_bytes >= log_async_config_.max_flush_size) {
           file_manager_.file.flush();
         }
       }
@@ -203,8 +229,8 @@ private:
 public:
   Logger()
       : ini_reader_(std::make_unique<IniReader>(CONFIG_PATH)),
-        ring_buffer_(
-            std::make_unique<containers::RingBuffer>(RING_BUFFER_SIZE)) {
+        ring_buffer_(std::make_unique<containers::RingBuffer>(
+            log_async_config_.ring_buffer_size_kb)) {
     UpdateConfig();
     config_monitor_ =
         std::make_unique<std::thread>([this] { MonitorConfigChanges(); });
@@ -237,9 +263,9 @@ public:
 
     std::ostringstream oss;
     oss << CurrentTime() << " " << LevelToString(level);
-    if (config_.print_func)
+    if (log_global_config_.print_func)
       oss << "[" << func << " ";
-    if (config_.print_line)
+    if (log_global_config_.print_line)
       oss << "L" << line << "] ";
     ((oss << std::forward<Args>(args)), ...) << "\n";
 
@@ -269,9 +295,9 @@ public:
 
     std::ostringstream oss;
     oss << CurrentTime() << " " << LevelToString(level);
-    if (config_.print_func)
+    if (log_global_config_.print_func)
       oss << "[" << func << " ";
-    if (config_.print_line)
+    if (log_global_config_.print_line)
       oss << "L" << line << "] ";
     oss << buffer << "\n";
 
@@ -290,9 +316,9 @@ public:
                  const std::vector<T> &vector) {
     std::ostringstream oss;
     oss << CurrentTime() << " " << LevelToString(level);
-    if (config_.print_func)
+    if (log_global_config_.print_func)
       oss << "[" << func << " ";
-    if (config_.print_line)
+    if (log_global_config_.print_line)
       oss << "L" << line << "] ";
 
     for (size_t i = 0; i < vector.size(); ++i) {
