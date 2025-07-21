@@ -33,7 +33,8 @@ set(SOURCES
     # tests/unit/thread_pool_test.cpp
     # tests/unit/timer_scheduler.cpp
     # tests/unit/unpacker_test.cpp
-    tests/unit/net_reactor_test.cpp
+    # tests/unit/net_reactor_test.cpp
+    tests/unit/logger_test.cpp
 
     src/containers/ring_buffer.cpp
     src/containers/byte_stream.cpp

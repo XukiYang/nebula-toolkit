@@ -1,5 +1,5 @@
 #pragma once
-#include "../logkit/logkit.hpp"
+// #include "../logger/logger.hpp" 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -9,6 +9,7 @@
 #include <mutex>
 #include <string.h>
 #include <vector>
+
 namespace containers {
 
 /// @brief 环形缓冲区
@@ -40,7 +41,7 @@ public:
 
     const size_t available = AvailableToWrite();
     const size_t write_data_size = write_data.size() * sizeof(T);
-    LOG_MSG(available, write_data_size);
+    // LOG_MSG(available, write_data_size);
     if (write_data_size > available) {
       return (size_t)Result::kErrorFull; // 可写空间不足
     }
@@ -118,6 +119,12 @@ public:
   /// @param bytes_to_write
   /// @return
   size_t Write(const std::byte *write_ptr, size_t bytes_to_write);
+
+  // /// @brief 按照kb读取数据
+  // /// @param read_ptr
+  // /// @param kbs
+  // /// @return
+  // size_t Read(std::byte *read_ptr, uint8_t kbs);
 
 public:
   /// @brief hex打印缓冲区

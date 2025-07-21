@@ -1,5 +1,5 @@
 #include "../../include/threading/timer_scheduler.hpp"
-#include "../../include/logkit/logkit.hpp"
+#include "../../include/logger/logger.hpp"
 #include <unistd.h>
 
 int main() {
