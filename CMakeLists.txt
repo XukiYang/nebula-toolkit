@@ -48,6 +48,8 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 #----------------------------------------------------------------
 # find_package(Boost 1.70 REQUIRED COMPONENTS filesystem system)
 # target_link_libraries(${PROJECT_NAME} PUBLIC Boost::filesystem)
+find_package(FMT REQUIRED)
+target_link_libraries(${PROJECT_NAME} fmt::fmt)
 
 #----------------------------------------------------------------
 # 5. 静态文件复制

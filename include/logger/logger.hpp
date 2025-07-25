@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <cstdarg>
 #include <ctime>
+#include <fmt/core.h>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -106,6 +107,27 @@ private:
     ini_reader_->GetValue(LEVEL_SECTION, "warn", log_level_config_.warn);
     ini_reader_->GetValue(LEVEL_SECTION, "debug", log_level_config_.debug);
     ini_reader_->GetValue(LEVEL_SECTION, "error", log_level_config_.error);
+
+    fmt::print("------LOG_GLOBAL CONFIG------\n"
+               "max_file_size_kb:{},print_line:{},print_func:{},"
+               "print_time:{},log_directory:{}\n",
+               log_global_config_.max_file_size, log_global_config_.print_line,
+               log_global_config_.print_func, log_global_config_.print_time,
+               log_global_config_.log_directory);
+
+    fmt::print("------LOG_ASYNC CONFIG------\n"
+               "ring_buffer_size_kb:{},batch_size_kb:{},max_flush_size:{"
+               "}\n",
+               log_async_config_.ring_buffer_size_kb,
+               log_async_config_.batch_size_kb,
+               log_async_config_.max_flush_size);
+
+    fmt::print("------LOG_LEVEL CONFIG------\n"
+               "msg:{},info:{},warn:{"
+               "},debug:{},error:{}\n",
+               log_level_config_.msg, log_level_config_.info,
+               log_level_config_.warn, log_level_config_.debug,
+               log_level_config_.error);
   }
 
   void MonitorConfigChanges() {
@@ -262,7 +284,8 @@ public:
     std::lock_guard<std::mutex> lock(mutex_);
 
     std::ostringstream oss;
-    oss << CurrentTime() << " " << LevelToString(level);
+    if (log_global_config_.print_time)
+      oss << CurrentTime() << " " << LevelToString(level);
     if (log_global_config_.print_func)
       oss << "[" << func << " ";
     if (log_global_config_.print_line)
@@ -294,7 +317,8 @@ public:
     va_end(args);
 
     std::ostringstream oss;
-    oss << CurrentTime() << " " << LevelToString(level);
+    if (log_global_config_.print_time)
+      oss << CurrentTime() << " " << LevelToString(level);
     if (log_global_config_.print_func)
       oss << "[" << func << " ";
     if (log_global_config_.print_line)
