@@ -57,7 +57,6 @@ private:
   static constexpr const char *GLOBAL_SECTION = "LOG_GLOBAL";
   static constexpr const char *ASYNC_SECTION = "LOG_GLOBAL";
   static constexpr const char *LEVEL_SECTION = "LOG_LEVEL";
-  // static constexpr const uint64_t RING_BUFFER_SIZE = 1024 * 64; // 64kb
 
   std::mutex mutex_;
   FileManager file_manager_;
@@ -78,7 +77,7 @@ private:
 
   std::atomic<bool> cust_thread_running_{true};
 
-  void UpdateConfig() {
+  inline void UpdateConfig() {
     std::lock_guard<std::mutex> lock(mutex_);
     // LOG_GLOBAL
     ini_reader_->GetValue(GLOBAL_SECTION, "max_file_size_kb",
@@ -130,7 +129,7 @@ private:
                log_level_config_.error);
   }
 
-  void MonitorConfigChanges() {
+  inline void MonitorConfigChanges() {
     time_t last_mod = 0;
     while (monitor_config_thread_running_) {
       struct stat file_stat;
@@ -144,7 +143,7 @@ private:
     }
   }
 
-  bool ShouldLog(LogLevel level) const {
+  inline bool ShouldLog(const LogLevel &level) const {
     switch (level) {
     case MSG:
       return log_level_config_.msg;
@@ -161,13 +160,13 @@ private:
     }
   }
 
-  const char *LevelToString(LogLevel level) const {
+  inline const char *LevelToString(const LogLevel &level) const {
     static const char *levels[] = {"[MSG] ", "[INFO] ", "[WARN] ", "[DEBUG] ",
                                    "[ERROR] "};
     return levels[level];
   }
 
-  std::string CurrentTime() const {
+  inline std::string CurrentTime() const {
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&time);
@@ -177,7 +176,7 @@ private:
     return oss.str();
   }
 
-  std::string CurrentDate() const {
+  inline std::string CurrentDate() const {
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&time);
@@ -187,7 +186,7 @@ private:
     return oss.str();
   }
 
-  void RotateFileIfNeeded() {
+  inline void RotateFileIfNeeded() {
     std::string date = CurrentDate();
 
     if (date != file_manager_.current_date) {
@@ -200,7 +199,7 @@ private:
     }
   }
 
-  void OpenNewFile() {
+  inline void OpenNewFile() {
     if (file_manager_.file.is_open()) {
       file_manager_.file.close();
     }
@@ -216,8 +215,8 @@ private:
 
   void CustThreadProc() {
     size_t cur_write_bytes = 0;
-    std::vector<uint8_t> read_buffer(
-        log_async_config_.batch_size_kb); // 1copy 缓冲容器
+    static size_t batch_size_kb = log_async_config_.batch_size_kb;
+    std::vector<uint8_t> read_buffer(batch_size_kb); // 1copy 缓冲容器
 
     while (cust_thread_running_.load()) {
       std::unique_lock<std::mutex> lock(ring_buffer_mutex_);
@@ -241,6 +240,11 @@ private:
         // 超过最大写入字节 flush
         if (min_read_bytes >= log_async_config_.max_flush_size) {
           file_manager_.file.flush();
+        }
+        // 更新块
+        if (batch_size_kb != log_async_config_.batch_size_kb) {
+          batch_size_kb = log_async_config_.batch_size_kb;
+          read_buffer.reserve(batch_size_kb);
         }
       }
     }
