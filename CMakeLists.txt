@@ -28,13 +28,13 @@ include_directories(include) # 头文件搜索路径
 # file(GLOB SOURCES "src/*.cpp") # 自动收集源文件
 # 或显式列出源文件（推荐）：
 set(SOURCES
-    # tests/unit/ring_buffer_test.cpp
+    tests/unit/ring_buffer_test.cpp
     # tests/unit/byte_stream_test.cpp
     # tests/unit/thread_pool_test.cpp
     # tests/unit/timer_scheduler.cpp
     # tests/unit/unpacker_test.cpp
     # tests/unit/net_reactor_test.cpp
-    tests/unit/logger_test.cpp
+    # tests/unit/logger_test.cpp
 
     src/containers/ring_buffer.cpp
     src/containers/byte_stream.cpp

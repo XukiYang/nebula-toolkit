@@ -1,5 +1,7 @@
 #include "../../include/containers/ring_buffer.hpp"
 #include "../../include/logger/logger.hpp"
+#include <fmt/chrono.h>
+#include <fmt/core.h>
 
 void General_IO_Testing() {
   LOG_MSG("General_IO_Testing");
@@ -46,10 +48,10 @@ void General_IO_Testing() {
 
   // 环绕读写测试
   containers::RingBuffer ring_buffer_3(5);
-  ring_buffer_3.Write({1, 2, 3, 4, 5});
+  ring_buffer_3.Write(std::vector<uint8_t>{1, 2, 3, 4, 5});
   ring_buffer_3.PrintBuffer();
   ring_buffer_3.Read(out, 3);
-  ring_buffer_3.Write({6, 7, 8});
+  ring_buffer_3.Write(std::vector<uint8_t>{6, 7, 8});
   ring_buffer_3.PrintBuffer();
 };
 
@@ -68,8 +70,60 @@ void General_Fullempty_Testing() {
            ring_buffer.IsFull() * 100, ring_buffer.Usage());
 };
 
+void General_IO_CustTime_Testing() {
+
+  // 读字节
+  constexpr size_t read_size = 64 * 1024;
+  // 测试次数
+  constexpr size_t measurement_count = 500;
+
+  containers::RingBuffer ring_buffer(64 * 4 * 1024);
+  std::vector<std::byte> read_data_buf(read_size);
+  std::vector<std::byte> write_data_buf(read_size);
+
+  // 预热阶段（不计入统计）
+  constexpr size_t warmup_count = 10;
+  for (size_t i = 0; i < warmup_count; ++i) {
+    ring_buffer.Write(write_data_buf.data(), read_size);
+    ring_buffer.Read(read_data_buf.data(), read_size);
+  }
+
+  size_t valid_measurements = 0;
+  size_t read_ns_total = 0;
+  size_t write_ns_total = 0;
+
+  // 正式测量
+  for (size_t i = 0; i < measurement_count; ++i) {
+    // 写入测试
+    auto write_start = std::chrono::high_resolution_clock::now();
+    ring_buffer.Write(write_data_buf.data(), read_size);
+    auto write_end = std::chrono::high_resolution_clock::now();
+    auto write_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        write_end - write_start)
+                        .count();
+    write_ns_total += write_ns;
+
+    // 读取测试
+    auto read_start = std::chrono::high_resolution_clock::now();
+    ring_buffer.Read(read_data_buf.data(), read_size);
+    auto read_end = std::chrono::high_resolution_clock::now();
+    auto read_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                       read_end - read_start)
+                       .count();
+    read_ns_total += read_ns;
+
+    valid_measurements++;
+  }
+
+  // 结果输出
+  fmt::println("Write avg: {} ns/op", write_ns_total / valid_measurements);
+  fmt::println("Read avg: {} ns/op", read_ns_total / valid_measurements);
+  fmt::println("Total ops: {}", valid_measurements);
+}
+
 int main(int argc, char const *argv[]) {
-  General_IO_Testing();
-  General_Fullempty_Testing();
+  // General_IO_Testing();
+  // General_Fullempty_Testing();
+  General_IO_CustTime_Testing();
   return 0;
 }
