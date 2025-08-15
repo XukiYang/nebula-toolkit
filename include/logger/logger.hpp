@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <cstdarg>
 #include <ctime>
+#include <fmt/chrono.h>
 #include <fmt/core.h>
 #include <fstream>
 #include <iomanip>
@@ -339,6 +340,34 @@ public:
       cv.notify_one();
     }
   }
+
+  template <typename... Args>
+  void LogFmt(LogLevel level, const char *func, size_t line,
+              fmt::format_string<Args...> format, Args &&...args) {
+    if (!ShouldLog(level))
+      return;
+
+    std::string log_str = fmt::format(format, std::forward<Args>(args)...);
+    std::ostringstream oss;
+    if (log_global_config_.print_time)
+      oss << CurrentTime() << " " << LevelToString(level);
+    if (log_global_config_.print_func)
+      oss << "[" << func << " ";
+    if (log_global_config_.print_line)
+      oss << "L" << line << "] ";
+    oss << log_str << "\n";
+
+    std::cout << oss.str();
+
+    if (level != MSG) {
+      std::lock_guard<std::mutex> lock(ring_buffer_mutex_);
+      ring_buffer_->Write(
+          reinterpret_cast<const std::byte *>(oss.str().c_str()),
+          oss.str().length());
+      cv.notify_one();
+    }
+  }
+
   template <typename T>
   void LogVector(LogLevel level, const char *func, size_t line,
                  const std::vector<T> &vector) {
@@ -397,3 +426,14 @@ public:
 
 #define LOG_VECTOR(vector)                                                     \
   Logger::Instance().LogVector(Logger::MSG, __func__, __LINE__, vector)
+
+#define LOGF_MSG(fmt, ...)                                                     \
+  Logger::Instance().LogFmt(Logger::MSG, __func__, __LINE__, fmt, __VA_ARGS__)
+#define LOGF_INFO(fmt, ...)                                                    \
+  Logger::Instance().LogFmt(Logger::INFO, __func__, __LINE__, fmt, __VA_ARGS__)
+#define LOGF_WARN(fmt, ...)                                                    \
+  Logger::Instance().LogFmt(Logger::WARN, __func__, __LINE__, fmt, __VA_ARGS__)
+#define LOGF_DEBUG(fmt, ...)                                                   \
+  Logger::Instance().LogFmt(Logger::DEBUG, __func__, __LINE__, fmt, __VA_ARGS__)
+#define LOGF_ERROR(fmt, ...)                                                   \
+  Logger::Instance().LogFmt(Logger::MSG, __func__, __LINE__, fmt, __VA_ARGS__)

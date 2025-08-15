@@ -27,7 +27,9 @@ int main() {
   auto start = std::chrono::high_resolution_clock::now();
 
   for (size_t i = 0; i < kTestCount; ++i) {
-    LOG_INFO("Test log index:", i);
+    // LOG_INFO("Test log index:", i);
+    // LOGF_INFO("Test log index:{}", i);
+    LOGP_INFO("Test log index:%ld", i);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
