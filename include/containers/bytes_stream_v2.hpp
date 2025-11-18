@@ -47,17 +47,17 @@ public:
         if (write_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Write overflow in BytesStream");
         }
-        std::memcpy(buffer_.data() + write_pos_, &data, t_size);
+        std::memcpy(buffer_.data() + write_pos_, data.data(), t_size);
         write_pos_ += t_size;
         return *this;
     }
     template <typename T>
-    BytesStream& operator<<(std::vector<T>& data) {
+    BytesStream& operator>>(std::vector<T>& data) {
         size_t t_size = data.size() * sizeof(T);
         if (read_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Read overflow in BytesStream");
         }
-        std::memcpy(&data, buffer_.data() + read_pos_, t_size);
+        std::memcpy(data.data(), buffer_.data() + read_pos_, t_size);
         read_pos_ += t_size;
         return *this;
     }
@@ -68,16 +68,16 @@ public:
         if (write_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Write overflow in BytesStream");
         }
-        std::memcpy(buffer_.data() + write_pos_, &data, t_size);
+        std::memcpy(buffer_.data() + write_pos_, data.data(), t_size);
         write_pos_ += t_size;
         return *this;
     }
-    BytesStream& operator<<(std::string& data) {
+    BytesStream& operator>>(std::string& data) {
         size_t t_size = data.size();
         if (read_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Read overflow in BytesStream");
         }
-        std::memcpy(&data, buffer_.data() + read_pos_, t_size);
+        std::memcpy(data.data(), buffer_.data() + read_pos_, t_size);
         read_pos_ += t_size;
         return *this;
     }
