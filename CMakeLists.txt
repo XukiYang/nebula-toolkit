@@ -1,5 +1,5 @@
 # 本cmake使用使用模板构建
-cmake_minimum_required(VERSION 3.12) # 最低 CMake 版本
+cmake_minimum_required(VERSION 3.14) # 最低 CMake 版本（fmt 9.1.0 建议 ≥3.14）
 project(nebula-toolkit # 项目名称
     VERSION 1.0.0 # 版本号
     LANGUAGES CXX # 语言：CXX(C++) 或 C
@@ -19,8 +19,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output)
 # 2. 添加头文件目录
 #----------------------------------------------------------------
 include_directories(include) # 头文件搜索路径
-# 或更推荐的方式（CMake 3.10+）：
-# target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 #----------------------------------------------------------------
 # 3. 添加源文件并生成目标
@@ -48,8 +46,25 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 #----------------------------------------------------------------
 # find_package(Boost 1.70 REQUIRED COMPONENTS filesystem system)
 # target_link_libraries(${PROJECT_NAME} PUBLIC Boost::filesystem)
-find_package(FMT REQUIRED)
-target_link_libraries(${PROJECT_NAME} fmt::fmt)
+# find_package(FMT REQUIRED)  # 改用源码集成
+# target_link_libraries(${PROJECT_NAME} fmt::fmt) 
+
+#----------------------------------------------------------------
+# 4.1 集成 fmt 源码（替换 find_package）
+#----------------------------------------------------------------
+# 禁用 fmt 的测试和文档
+set(FMT_TEST OFF CACHE BOOL "" FORCE)
+set(FMT_DOC OFF CACHE BOOL "" FORCE)
+# 将 fmt 作为子项目引入
+add_subdirectory(lib/fmt-10.2.1)
+# 链接 fmt 提供的 target
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
+
+#----------------------------------------------------------------
+# 4.2 链接 Threads
+#----------------------------------------------------------------
+find_package(Threads REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads)
 
 #----------------------------------------------------------------
 # 5. 静态文件复制
