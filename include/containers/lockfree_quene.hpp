@@ -1,4 +1,4 @@
-/* 单生产者单消费者线程安全的无锁环形队列实现 */
+/* 基于C++11的单生产者单消费者线程安全的无锁环形队列实现 */
 #pragma once
 #include <atomic>
 #include <cstddef>
