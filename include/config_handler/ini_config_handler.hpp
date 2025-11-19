@@ -128,6 +128,7 @@ public:
     bool ReadIniFile(const std::string& file_path = "") {
         std::string path = file_path.empty() ? file_path_ : file_path;
         if (path.empty()) return false;
+        if (file_path_.empty()) file_path_ = file_path;
 
         std::ifstream file(path);
         if (!file.is_open()) {
