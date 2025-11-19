@@ -27,12 +27,13 @@ include_directories(include) # 头文件搜索路径
 # 或显式列出源文件（推荐）：
 set(SOURCES
     # tests/unit/ring_buffer_test.cpp
-    tests/unit/byte_stream_test.cpp
+    # tests/unit/byte_stream_test.cpp
     # tests/unit/thread_pool_test.cpp
     # tests/unit/timer_scheduler.cpp
     # tests/unit/unpacker_test.cpp
     # tests/unit/net_reactor_test.cpp
     # tests/unit/logger_test.cpp
+    tests/unit/config_handler/ini_config_handler.cpp
 )
 # add_library(${PROJECT_NAME} STATIC ${SOURCES}) # 静态库
 # 或生成可执行文件：
