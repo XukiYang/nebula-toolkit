@@ -33,7 +33,8 @@ set(SOURCES
     # tests/unit/unpacker_test.cpp
     # tests/unit/net_reactor_test.cpp
     # tests/unit/logger_test.cpp
-    tests/unit/config_handler/ini_config_handler.cpp
+    # tests/unit/config_handler/ini_config_handler.cpp
+    tests/unit/memory/memory_pool_test.cpp
 )
 # add_library(${PROJECT_NAME} STATIC ${SOURCES}) # 静态库
 # 或生成可执行文件：
