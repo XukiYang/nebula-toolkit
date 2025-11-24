@@ -8,6 +8,7 @@
 #include <utility>
 
 #define ALIGNAS_SIZE 64
+namespace containers {
 
 enum class Result { kSuccess = 0, kErrorFull = -1, kErrorEmpty = -2, kErrorInvalidSize = -3, kInvalidParam = -4 };
 
@@ -214,3 +215,4 @@ public:
         return Result::kSuccess;
     }
 };
+}  // namespace containers

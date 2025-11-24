@@ -16,7 +16,7 @@ std::string FormatDuration(uint64_t ns) {
 }
 
 int main() {
-  constexpr size_t kTestCount = 50000;
+  constexpr size_t kTestCount = 200000;
 
   fmt::print("预热运行中...");
   for (size_t i = 0; i < 10; ++i) {
@@ -29,7 +29,8 @@ int main() {
   for (size_t i = 0; i < kTestCount; ++i) {
     // LOG_INFO("Test log index:", i);
     // LOGF_INFO("Test log index:{}", i);
-    LOGP_INFO("Test log index:%ld", i);
+    // LOGP_INFO("####################################################,Test log index:%ld,####################################################", i);
+    LOGF_INFO("####################################################,Test log index:{},####################################################", i);
   }
 
   auto end = std::chrono::high_resolution_clock::now();

@@ -34,7 +34,8 @@ set(SOURCES
     # tests/unit/net_reactor_test.cpp
     # tests/unit/logger_test.cpp
     # tests/unit/config_handler/ini_config_handler.cpp
-    tests/unit/memory/memory_pool_test.cpp
+    # tests/unit/memory/memory_pool_test.cpp
+    tests/unit/logger/logger_test.cpp
 )
 # add_library(${PROJECT_NAME} STATIC ${SOURCES}) # 静态库
 # 或生成可执行文件：
@@ -60,11 +61,11 @@ add_subdirectory(lib/fmt-10.2.1)
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 
 #----------------------------------------------------------------
-# 4.2 链接 Threads
+# 4.2 链接 Threads\latomic
 #----------------------------------------------------------------
 find_package(Threads REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads)
-
+target_link_libraries(${PROJECT_NAME} PRIVATE -latomic)
 #----------------------------------------------------------------
 # 5. 静态文件复制
 #----------------------------------------------------------------
