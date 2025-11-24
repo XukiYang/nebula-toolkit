@@ -608,7 +608,10 @@ TEST(locale_test, chrono_weekday) {
   EXPECT_EQ(fmt::format(L"{}", sat), L"Sat");
   if (loc != std::locale::classic()) {
     // L'\xE1' is 'á'.
-    auto saturdays = std::vector<std::wstring>{L"s\xE1""b", L"s\xE1."};
+    auto saturdays = std::vector<std::wstring>{
+        L"s\xE1"
+        "b",
+        L"s\xE1."};
     EXPECT_THAT(saturdays, Contains(fmt::format(loc, L"{:L}", sat)));
   }
   std::locale::global(loc_old);

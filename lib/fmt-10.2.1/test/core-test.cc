@@ -273,7 +273,8 @@ struct custom_context {
   bool called = false;
 
   template <typename T> struct formatter_type {
-    FMT_CONSTEXPR auto parse(fmt::format_parse_context& ctx) -> decltype(ctx.begin()) {
+    FMT_CONSTEXPR auto parse(fmt::format_parse_context& ctx)
+        -> decltype(ctx.begin()) {
       return ctx.begin();
     }
 

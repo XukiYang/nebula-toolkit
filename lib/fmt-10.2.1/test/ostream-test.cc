@@ -292,8 +292,7 @@ TEST(ostream_test, closed_ofstream) {
 
 struct unlocalized {};
 
-auto operator<<(std::ostream& os, unlocalized)
-    -> std::ostream& {
+auto operator<<(std::ostream& os, unlocalized) -> std::ostream& {
   return os << 12345;
 }
 

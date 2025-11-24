@@ -450,8 +450,7 @@ const char* parse_scan_specs(const char* begin, const char* end,
 }
 
 template <typename T, FMT_ENABLE_IF(std::is_unsigned<T>::value)>
-auto read(scan_iterator it, T& value)
-    -> scan_iterator {
+auto read(scan_iterator it, T& value) -> scan_iterator {
   if (it == scan_sentinel()) return it;
   char c = *it;
   if (c < '0' || c > '9') throw_format_error("invalid input");
@@ -484,8 +483,7 @@ auto read(scan_iterator it, T& value)
 }
 
 template <typename T, FMT_ENABLE_IF(std::is_unsigned<T>::value)>
-auto read_hex(scan_iterator it, T& value)
-    -> scan_iterator {
+auto read_hex(scan_iterator it, T& value) -> scan_iterator {
   if (it == scan_sentinel()) return it;
   int digit = to_hex_digit(*it);
   if (digit < 0) throw_format_error("invalid input");
@@ -510,8 +508,7 @@ auto read_hex(scan_iterator it, T& value)
 template <typename T, FMT_ENABLE_IF(std::is_unsigned<T>::value)>
 auto read(scan_iterator it, T& value, const format_specs<>& specs)
     -> scan_iterator {
-  if (specs.type == presentation_type::hex_lower)
-    return read_hex(it, value);
+  if (specs.type == presentation_type::hex_lower) return read_hex(it, value);
   return read(it, value);
 }
 

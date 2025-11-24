@@ -2206,7 +2206,7 @@ TEST(format_int_test, format_int) {
   EXPECT_EQ(fmt::format_int(42ul).str(), "42");
   EXPECT_EQ(fmt::format_int(-42l).str(), "-42");
   EXPECT_EQ(fmt::format_int(42ull).str(), "42");
-  EXPECT_EQ(fmt::format_int(-42ll).str(), "-42");\
+  EXPECT_EQ(fmt::format_int(-42ll).str(), "-42");
   EXPECT_EQ(fmt::format_int(max_value<int64_t>()).str(),
             std::to_string(max_value<int64_t>()));
 }

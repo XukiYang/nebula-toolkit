@@ -1118,10 +1118,10 @@ using uint32_or_64_or_128_t =
 template <typename T>
 using uint64_or_128_t = conditional_t<num_bits<T>() <= 64, uint64_t, uint128_t>;
 
-#define FMT_POWERS_OF_10(factor)                                  \
-  factor * 10, (factor) * 100, (factor) * 1000, (factor) * 10000, \
-      (factor) * 100000, (factor) * 1000000, (factor) * 10000000, \
-      (factor) * 100000000, (factor) * 1000000000
+#define FMT_POWERS_OF_10(factor)                                             \
+  factor * 10, (factor)*100, (factor)*1000, (factor)*10000, (factor)*100000, \
+      (factor)*1000000, (factor)*10000000, (factor)*100000000,               \
+      (factor)*1000000000
 
 // Converts value in the range [0, 100) to a string.
 constexpr auto digits2(size_t value) -> const char* {
@@ -1216,7 +1216,7 @@ FMT_CONSTEXPR auto count_digits(UInt n) -> int {
 FMT_INLINE auto do_count_digits(uint32_t n) -> int {
 // An optimization by Kendall Willets from https://bit.ly/3uOIQrB.
 // This increments the upper 32 bits (log10(T) - 1) when >= T is added.
-#  define FMT_INC(T) (((sizeof(#T) - 1ull) << 32) - T)
+#  define FMT_INC(T) (((sizeof(#  T) - 1ull) << 32) - T)
   static constexpr uint64_t table[] = {
       FMT_INC(0),          FMT_INC(0),          FMT_INC(0),           // 8
       FMT_INC(10),         FMT_INC(10),         FMT_INC(10),          // 64
@@ -3744,8 +3744,8 @@ template <typename Char, typename OutputIt, typename T,
 FMT_CONSTEXPR auto write(OutputIt out, const T& value) -> enable_if_t<
     std::is_class<T>::value && !is_string<T>::value &&
         !is_floating_point<T>::value && !std::is_same<T, Char>::value &&
-        !std::is_same<T, remove_cvref_t<decltype(arg_mapper<Context>().map(
-                             value))>>::value,
+        !std::is_same<T, remove_cvref_t<decltype(
+                             arg_mapper<Context>().map(value))>>::value,
     OutputIt> {
   return write<Char>(out, arg_mapper<Context>().map(value));
 }
@@ -4129,9 +4129,7 @@ template <> struct formatter<bytes> {
 };
 
 // group_digits_view is not derived from view because it copies the argument.
-template <typename T> struct group_digits_view {
-  T value;
-};
+template <typename T> struct group_digits_view { T value; };
 
 /**
   \rst

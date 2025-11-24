@@ -1750,7 +1750,7 @@ class get_locale {
   ~get_locale() {
     if (has_locale_) locale_.~locale();
   }
-  operator const std::locale&() const {
+  operator const std::locale &() const {
     return has_locale_ ? locale_ : get_classic_locale();
   }
 };
