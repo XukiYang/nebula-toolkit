@@ -137,7 +137,9 @@ public:
                              unpacker_->AvailableToRead());
                     break;
                 }
-                ssize_t len = recvfrom(event.fd, buffer, capacity, 0, nullptr, 0);
+                struct sockaddr_storage addr;
+                socklen_t               addr_len = sizeof(addr);
+                ssize_t len = recvfrom(fd_, buffer, capacity, 0, reinterpret_cast<sockaddr*>(&addr), &addr_len);
 
                 if (len == -1) {
                     // 读取完毕
