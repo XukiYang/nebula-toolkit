@@ -82,6 +82,27 @@ public:
         return *this;
     }
 
+    /* 自身序列化 */
+    BytesStream& operator<<(const BytesStream& data) {
+        size_t t_size = data.Size();
+        if (write_pos_ + t_size > buffer_.size()) {
+            throw std::runtime_error("Write overflow in BytesStream");
+        }
+        std::memcpy(buffer_.data() + write_pos_, data.Data(), t_size);
+        write_pos_ += t_size;
+        return *this;
+    }
+
+    BytesStream& operator>>(BytesStream& data) {
+        size_t t_size = data.Size();
+        if (write_pos_ + t_size > buffer_.size()) {
+            throw std::runtime_error("Read overflow in BytesStream");
+        }
+        std::memcpy(&data.Begin(), buffer_.data() + read_pos_, t_size);
+        read_pos_ += t_size;
+        return *this;
+    }
+
     /* 获取已写字节数 */
     size_t Size() const {
         return write_pos_;
@@ -94,6 +115,22 @@ public:
     void Clear() {
         read_pos_  = 0;
         write_pos_ = 0;
+    }
+
+    /* 获取迭代器 */
+    std::vector<char>::iterator Begin() {
+        return buffer_.begin();
+    }
+    std::vector<char>::iterator End() {
+        return buffer_.end();
+    }
+
+    /* 提交操作 */
+    bool PostRead(const size_t& count) {
+        return write_pos_ += count;
+    }
+    bool PostWrite(const size_t& count) {
+        return write_pos_ += count;
     }
 };
 }  // namespace containers
