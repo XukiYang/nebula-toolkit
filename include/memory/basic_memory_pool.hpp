@@ -57,12 +57,4 @@ public:
     };
 };
 
-template <typename T>
-class Rall {
-private:
-public:
-    Rall(T&& obj);
-    ~Rall();
-};
-
 }  // namespace memory

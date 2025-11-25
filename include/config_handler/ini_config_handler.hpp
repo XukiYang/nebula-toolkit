@@ -157,6 +157,11 @@ public:
         return true;
     }
 
+    /* 刷新缓存 */
+    bool FlushCache(const std::string& file_path = "") {
+        return ReadIniFile(file_path);
+    }
+
     /* 获取值,基于引用 */
     bool GetVal(const std::string& section, const std::string& key, Val& out_val) const {
         auto section_it = config_.find(section);
