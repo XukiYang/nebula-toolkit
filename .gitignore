@@ -4,3 +4,4 @@ build
 *.a
 cmake-build-debug/
 .idea/
+net_benchmark_test
