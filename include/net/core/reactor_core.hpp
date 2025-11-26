@@ -193,7 +193,7 @@ private:
         auto unpacker = containers::UnPacker::CreateWithCallbacks(
             std::forward<containers::HeadKey>(head_key_), std::forward<containers::TailKey>(tail_key_),
             std::forward<containers::DataSzCb>(data_sz_cb_), std::forward<containers::CheckValidCb>(check_sz_cb_),
-            1024);
+            buffer_size_);
 
         // 创建TCP处理器
         auto handler = std::make_unique<TcpHandler>(conn_fd, std::move(unpacker));
@@ -214,7 +214,7 @@ private:
     containers::TailKey      tail_key_{};
     containers::DataSzCb     data_sz_cb_  = nullptr;
     containers::CheckValidCb check_sz_cb_ = nullptr;
-    size_t                   buffer_size_ = 1024;
+    size_t                   buffer_size_ = 0;
 
     // 处理器业务执行回调
     ExecCb exec_cb_ = nullptr;

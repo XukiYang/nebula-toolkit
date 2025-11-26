@@ -37,9 +37,9 @@ int main() {
     reactor.SetConnHandlerParams({0xE, 0xD}, {0xA}, nullptr, nullptr,
                                  [](std::vector<std::vector<uint8_t>>& packs) -> void {
                                      for (const auto& pack : packs) {
-                                         LOG_VECTOR(pack);
+                                        LOGMSG_VECTOR(pack);
                                      }
-                                 });
+                                 },8192);
 
     // 创建UDP套接字
     int udp_fd = SocketCreator::CreateUdpSocket("0.0.0.0", 9090);
@@ -54,7 +54,7 @@ int main() {
     auto udp_handler = std::make_unique<UdpHandler>(udp_fd, std::move(udp_unpacker));
     udp_handler->SetCallback([](std::vector<std::vector<uint8_t>>& packs) {
         for (const auto& pack : packs) {
-            LOG_VECTOR(pack);
+            LOGMSG_VECTOR(pack);
         }
     });
 

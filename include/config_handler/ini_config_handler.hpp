@@ -36,7 +36,8 @@ struct Val {
     bool GetBool() const {
         std::string lower = raw_;
         std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-        return (lower == "true" || lower == "1" || lower == "t" || lower == "yes" || lower == "on");
+        return (lower == "true" || lower == "1" || lower == "t" || lower == "T" || lower == "yes" || lower == "YES"
+                || lower == "on" || lower == "ON");
     }
 
     /* 获取字符串 */

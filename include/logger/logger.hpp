@@ -102,25 +102,26 @@ private:
         ini_reader_->GetValue(LEVEL_SECTION, "debug", log_level_config_.debug);
         ini_reader_->GetValue(LEVEL_SECTION, "error", log_level_config_.error);
 
-        fmt::print(
-            "------LOG_GLOBAL CONFIG------\n"
-            "max_file_size_kb:{},print_line:{},print_func:{},"
-            "print_time:{},log_directory:{}\n",
-            log_global_config_.max_file_size, log_global_config_.print_line, log_global_config_.print_func,
-            log_global_config_.print_time, log_global_config_.log_directory);
+        // fmt::print(
+        //     "------LOG_GLOBAL CONFIG------\n"
+        //     "max_file_size_kb:{},print_line:{},print_func:{},"
+        //     "print_time:{},log_directory:{}\n",
+        //     log_global_config_.max_file_size, log_global_config_.print_line, log_global_config_.print_func,
+        //     log_global_config_.print_time, log_global_config_.log_directory);
 
-        fmt::print(
-            "------LOG_ASYNC CONFIG------\n"
-            "ring_buffer_size_kb:{},batch_size_kb:{},max_flush_size:{"
-            "}\n",
-            log_async_config_.ring_buffer_size_kb, log_async_config_.batch_size_kb, log_async_config_.max_flush_size);
+        // fmt::print(
+        //     "------LOG_ASYNC CONFIG------\n"
+        //     "ring_buffer_size_kb:{},batch_size_kb:{},max_flush_size:{"
+        //     "}\n",
+        //     log_async_config_.ring_buffer_size_kb, log_async_config_.batch_size_kb,
+        //     log_async_config_.max_flush_size);
 
-        fmt::print(
-            "------LOG_LEVEL CONFIG------\n"
-            "msg:{},info:{},warn:{"
-            "},debug:{},error:{}\n",
-            log_level_config_.msg, log_level_config_.info, log_level_config_.warn, log_level_config_.debug,
-            log_level_config_.error);
+        // fmt::print(
+        //     "------LOG_LEVEL CONFIG------\n"
+        //     "msg:{},info:{},warn:{"
+        //     "},debug:{},error:{}\n",
+        //     log_level_config_.msg, log_level_config_.info, log_level_config_.warn, log_level_config_.debug,
+        //     log_level_config_.error);
     }
 
     inline void MonitorConfigChanges() {
@@ -336,22 +337,32 @@ public:
 
     template <typename T>
     void LogVector(LogLevel level, const char* func, size_t line, const std::vector<T>& vector) {
+        if (!ShouldLog(level)) return;
+
+        std::lock_guard<std::mutex> lock(mutex_);
+
         std::ostringstream oss;
-        oss << CurrentTime() << " " << LevelToString(level);
+        if (log_global_config_.print_time) oss << CurrentTime() << " " << LevelToString(level);
         if (log_global_config_.print_func) oss << "[" << func << " ";
         if (log_global_config_.print_line) oss << "L" << line << "] ";
 
         for (size_t i = 0; i < vector.size(); ++i) {
-            if (i != 0)  // 首行不加
-                oss << ",";
-            if (sizeof(vector[i]) == 1)
-                oss << (size_t)vector[i];
-            else
+            if (i != 0) oss << ",";
+            if constexpr (std::is_same_v<T, unsigned char> || std::is_same_v<T, uint8_t>) {
+                oss << static_cast<int>(vector[i]);
+            } else {
                 oss << vector[i];
+            }
         }
         oss << "\n";
 
         std::cout << oss.str();
+
+        if (level != MSG) {
+            std::lock_guard<std::mutex> ring_lock(ring_buffer_mutex_);
+            ring_buffer_->Write(reinterpret_cast<const std::byte*>(oss.str().c_str()), oss.str().length());
+            cv.notify_one();
+        }
     }
 
     static Logger& Instance() {
@@ -372,7 +383,7 @@ public:
 #define LOGP_DEBUG(fmt, ...) Logger::Instance().LogPrint(Logger::DEBUG, __func__, __LINE__, fmt, ##__VA_ARGS__)
 #define LOGP_ERROR(fmt, ...) Logger::Instance().LogPrint(Logger::ERROR, __func__, __LINE__, fmt, ##__VA_ARGS__)
 
-#define LOG_VECTOR(vector) Logger::Instance().LogVector(Logger::MSG, __func__, __LINE__, vector)
+#define LOGMSG_VECTOR(vector) Logger::Instance().LogVector(Logger::MSG, __func__, __LINE__, vector)
 
 #define LOGF_MSG(fmt, ...)   Logger::Instance().LogFmt(Logger::MSG, __func__, __LINE__, fmt, __VA_ARGS__)
 #define LOGF_INFO(fmt, ...)  Logger::Instance().LogFmt(Logger::INFO, __func__, __LINE__, fmt, __VA_ARGS__)
