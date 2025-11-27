@@ -30,20 +30,19 @@ class UnPacker : public RingBuffer {
     enum UnpackerModel { kNone, kHead, kHeadTail, KHeadTailCb };
 
 public:
-    static std::unique_ptr<UnPacker> CreateBasic(HeadKey&& h, TailKey&& t, size_t s) {
+    static std::unique_ptr<UnPacker> CreateBasic(HeadKey h, TailKey t, size_t s) {
         // 此处直接返回unique_ptr不可行，智能指针模板无权访问内部构造，只能new再转unique_ptr
         return std::unique_ptr<UnPacker>(new UnPacker(std::move(h), std::move(t), s));
     }
 
-    static std::unique_ptr<UnPacker> CreateWithCallbacks(HeadKey&& h, TailKey&& t, DataSzCb&& dc, CheckValidCb&& cc,
-                                                         size_t s) {
+    static std::unique_ptr<UnPacker> CreateWithCallbacks(HeadKey h, TailKey t, DataSzCb dc, CheckValidCb cc, size_t s) {
         return std::unique_ptr<UnPacker>(new UnPacker(std::move(h), std::move(t), std::move(dc), std::move(cc), s));
     }
 
     /// @brief 检查解包模式
     /// @return UnpackerModel
     UnpackerModel CheckModel() {
-        if (data_sz_cb_ && check_sz_cb_ && !head_key_.empty() && !tail_key_.empty())
+        if (data_sz_cb_ != nullptr && check_sz_cb_ != nullptr && !head_key_.empty() && !tail_key_.empty())
             return UnpackerModel::KHeadTailCb;
         else if (!head_key_.empty() && tail_key_.empty())
             return UnpackerModel::kHead;
@@ -190,7 +189,11 @@ private:
         while (current_pos < total_size) {
             // 查找头定位符
             size_t head_offset = FindKey(head_key_, current_pos);
-            if (head_offset == buffer_.size()) break;
+
+            if (head_offset == buffer_.size()) {
+                CommitReadSize(head_offset);
+                break;  // 找不到头
+            }
 
             // 从头部后开始查找下一个头
             size_t next_head_offset = FindKey(head_key_, head_offset + head_key_.size());
@@ -233,7 +236,10 @@ private:
         while (current_pos < total_size) {
             // 查找头定位符
             size_t head_offset = FindKey(head_key_, current_pos);
-            if (head_offset == buffer_.size()) break;  // 找不到头
+            if (head_offset == buffer_.size()) {
+                CommitReadSize(head_offset);
+                break;  // 找不到头
+            }
 
             // 从头部后开始查找尾
             size_t tail_offset = FindKey(tail_key_, head_offset + head_key_.size());
@@ -278,7 +284,11 @@ private:
         while (current_pos < total_size) {
             // 查找头定位符
             size_t head_offset = FindKey(head_key_, current_pos);
-            if (head_offset == buffer_.size()) break;
+
+            if (head_offset == buffer_.size()) {
+                CommitReadSize(head_offset);
+                break;  // 找不到头
+            }
 
             // 应用回调获取包结构
             const size_t abs_head  = (read_index_ + head_offset) % buffer_.size();
