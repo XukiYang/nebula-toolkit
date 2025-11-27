@@ -4,7 +4,7 @@ g++ -o net_benchmark_test net_benchmark_test.cpp -pthread
 # UDP 模式：udp <发送线程数> <每包负载字节数> [<总包数>] [<持续秒数>]
 
 # TCP 测试：100 并发，每连接发 1000 包，payload=200 字节
-./net_benchmark_test tcp 10 200 1000
+./net_benchmark_test tcp 3 10 300
 
 # # TCP 测试：持续压测 30 秒（不限请求数）
 # ./net_benchmark_test tcp 200 512 0 30

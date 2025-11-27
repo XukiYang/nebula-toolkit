@@ -34,13 +34,13 @@ public:
 class TcpHandler : public ProtocolHandler {
 public:
     TcpHandler(int fd, std::unique_ptr<containers::UnPacker> unpacker)
-        : fd_(fd), unpacker_(std::move(unpacker)), should_close_(false) {}
+        : fd_(fd), unpacker_(std::move(unpacker)), should_close_(false), is_closed_(false) {}
 
     void SetCallback(ExecCb cb) {
         cb_ = std::move(cb);
     }
     bool ShouldClose() const override {
-        return should_close_;
+        return should_close_ || is_closed_;
     }
 
     void HandleEvent(int epoll_fd, const Event& event,
@@ -65,13 +65,20 @@ public:
 
         // 处理可读事件（边缘触发模式）
         if (event.event_flags & EventFlags::kReadable) {
-            ProcessReadableEvent();
+            if (!should_close_) {
+                ProcessReadableEvent();
+            }
         }
+    }
+
+    ~TcpHandler() override {
+        is_closed_ = true;  // 在析构时设置标志
     }
 
 private:
     const int                                  fd_;
     bool                                       should_close_;
+    bool                                       is_closed_;
     ExecCb                                     cb_;
     std::unique_ptr<containers::UnPacker>      unpacker_;
     std::vector<std::vector<uint8_t>>          packs_;
@@ -95,8 +102,11 @@ private:
                 // 解析数据包
                 unpacker_->Get(packs_);
 
-                if (!packs_.empty() && cb_) {
+                if (!packs_.empty() && cb_ && !should_close_) {
                     auto timer_task = [this]() {
+                        if (is_closed_) {  // 检查是否已关闭
+                            return 0;
+                        }
                         cb_(packs_);
                         return 0;
                     };
@@ -120,6 +130,10 @@ class UdpHandler : public ProtocolHandler {
 public:
     UdpHandler(int fd, std::unique_ptr<containers::UnPacker> unpacker)
         : fd_(fd), unpacker_(std::move(unpacker)), should_close_(false) {}
+
+    void SetCallback(ExecCb cb) {
+        cb_ = std::move(cb);
+    }
 
     void HandleEvent(int epoll_fd, const Event& event,
                      std::shared_ptr<threading::TimerScheduler> timer_shceduler) override {
@@ -156,19 +170,18 @@ public:
                 unpacker_->CommitWriteSize(len);
                 unpacker_->Get(packs_);
 
-                auto timer_task = [this]() {
-                    cb_(packs_);
-                    return 0;
-                };
-                timer_shceduler_->ScheduleOnce(0, timer_task);
+                if (!packs_.empty() && cb_) {
+                    auto timer_task = [this]() {
+                        cb_(packs_);
+                        return 0;
+                    };
+                    timer_shceduler_->ScheduleOnce(0, timer_task);
+                }
             }
         }
     };
     bool ShouldClose() const override {
         return should_close_;
-    }
-    void SetCallback(ExecCb cb) {
-        cb_ = std::move(cb);
     }
 
 private:

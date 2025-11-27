@@ -32,35 +32,25 @@ int main() {
         return 1;
     }
 
+    // 定义回调函数
+    auto exec_cb = [](std::vector<std::vector<uint8_t>>& packs) -> void {
+        for (const auto& vec : packs) {
+            fmt::print("PackData: ");
+            fmt::print("{}", fmt::join(vec, " "));
+            fmt::print("\n");
+        }
+    };
+
     // 注册TCP监听套接字
     reactor.RegisterProtocol(tcp_fd, nullptr, true);
-    reactor.SetConnHandlerParams({0xE, 0xD}, {0xA}, nullptr, nullptr,
-                                 [](std::vector<std::vector<uint8_t>>& packs) -> void {
-                                     for (const auto& pack : packs) {
-                                        LOGMSG_VECTOR(pack);
-                                     }
-                                 },8192);
-
-    // 创建UDP套接字
-    int udp_fd = SocketCreator::CreateUdpSocket("0.0.0.0", 9090);
-    if (udp_fd < 0) {
-        std::cerr << "Failed to create UDP socket\n";
-        return 1;
-    }
-
-    // 为UDP创建处理器
-    auto udp_unpacker =
-        containers::UnPacker::CreateBasic(containers::HeadKey{0xE, 0xD}, containers::TailKey{0xA}, 2048);
-    auto udp_handler = std::make_unique<UdpHandler>(udp_fd, std::move(udp_unpacker));
-    udp_handler->SetCallback([](std::vector<std::vector<uint8_t>>& packs) {
-        for (const auto& pack : packs) {
-            LOGMSG_VECTOR(pack);
-        }
-    });
-
-    reactor.RegisterProtocol(udp_fd, std::move(udp_handler));
-
-    std::cout << "Server started. Listening on TCP:8080 and UDP:9090\n";
+    reactor.SetConnHandlerParams({0xE, 0xD},  // head_key
+                                 {0xA},       // tail_key
+                                 nullptr,     // data_sz_cb
+                                 nullptr,     // check_sz_cb
+                                 exec_cb,     // exec_cb
+                                 8192         // buffer_size
+    );
+    std::cout << "Server started. Listening on TCP:8080\n";
     std::cout << "Press Ctrl+C to exit...\n";
 
     // 运行事件循环

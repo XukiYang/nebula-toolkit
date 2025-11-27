@@ -70,7 +70,9 @@ public:
     /// @brief 事件循环机制
     void Run() {
         epoll_event events[max_events_];
-        timer_shceduler_->Start();
+        if (timer_shceduler_) {
+            timer_shceduler_->Start();
+        }
         while (running_) {
             // 等待事件
             int nfds = epoll_wait(epoll_fd_, events, max_events_, -1);
@@ -134,8 +136,8 @@ public:
     /// @param exec_cb_
     /// @param buffer_size
     void SetConnHandlerParams(containers::HeadKey&& head_key, containers::TailKey&& tail_key,
-                              containers::DataSzCb data_sz_cb = nullptr, containers::CheckValidCb check_sz_cb = nullptr,
-                              ExecCb exec_cb = nullptr, size_t buffer_size = 1024) {
+                              containers::DataSzCb data_sz_cb, containers::CheckValidCb check_sz_cb, ExecCb exec_cb,
+                              size_t buffer_size = 1024) {
         head_key_    = std::move(head_key);
         tail_key_    = std::move(tail_key);
         data_sz_cb_  = std::move(data_sz_cb);
@@ -190,15 +192,21 @@ private:
     /// @param conn_fd
     void CreateConnHandler(int conn_fd) {
         // 创建解包器（每个连接独立）
-        auto unpacker = containers::UnPacker::CreateWithCallbacks(
-            std::forward<containers::HeadKey>(head_key_), std::forward<containers::TailKey>(tail_key_),
-            std::forward<containers::DataSzCb>(data_sz_cb_), std::forward<containers::CheckValidCb>(check_sz_cb_),
-            buffer_size_);
-
+        std::unique_ptr<containers::UnPacker> unpacker;
+        if (data_sz_cb_ && check_sz_cb_) {
+            // 使用带回调的解包器
+            unpacker = containers::UnPacker::CreateWithCallbacks(head_key_, tail_key_, data_sz_cb_, check_sz_cb_,
+                                                                 buffer_size_);
+        } else {
+            // 使用基本解包器
+            unpacker = containers::UnPacker::CreateBasic(head_key_, tail_key_, buffer_size_);
+        }
         // 创建TCP处理器
         auto handler = std::make_unique<TcpHandler>(conn_fd, std::move(unpacker));
         // 设置业务执行回调
-        handler->SetCallback(exec_cb_);
+        if (exec_cb_) {
+            handler->SetCallback(exec_cb_);
+        }
 
         // 注册新连接
         RegisterProtocol(conn_fd, std::move(handler));

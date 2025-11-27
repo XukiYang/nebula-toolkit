@@ -30,6 +30,12 @@ void tcp_benchmark(const std::string& server_ip, int port,
                    size_t payload_size,       // payload 字节数
                    int    duration_sec        // 最大运行时间（秒）
 ) {
+    // 参数校验
+    if (concurrency <= 0 || requests_per_conn <= 0 || payload_size == 0) {
+        std::cerr << "Error: Invalid TCP parameters\n";
+        return;
+    }
+
     std::atomic<uint64_t>    total_bytes_sent{0};
     std::atomic<int>         active_connections{0};
     std::vector<std::thread> threads;
@@ -58,7 +64,8 @@ void tcp_benchmark(const std::string& server_ip, int port,
             active_connections++;
 
             auto pkt = make_packet(payload);
-            for (int req = 0; req < requests_per_conn && !stop_flag; ++req) {
+            for (int req = 0; req < requests_per_conn; ++req) {
+                if (stop_flag) break;  // 关键：支持提前退出
                 if (send(sockfd, pkt.data(), pkt.size(), 0) <= 0) break;
                 total_bytes_sent += pkt.size();
             }
@@ -82,6 +89,8 @@ void tcp_benchmark(const std::string& server_ip, int port,
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count()
         / 1000.0;
 
+    if (elapsed <= 0) elapsed = 1e-3;  // 避免除零
+
     double throughput_mbps   = (total_bytes_sent * 8.0) / (elapsed * 1e6);
     double throughput_mbps_s = total_bytes_sent / (1024.0 * 1024.0) / elapsed;
 
@@ -100,6 +109,12 @@ void udp_benchmark(const std::string& server_ip, int port,
                    int    thread_count,   // 发送线程数（模拟并发）
                    int    total_packets,  // 总包数（若为0，则按 duration_sec 发送）
                    size_t payload_size, int duration_sec) {
+    // 参数校验
+    if (thread_count <= 0 || payload_size == 0 || (total_packets == 0 && duration_sec <= 0)) {
+        std::cerr << "Error: Invalid UDP parameters\n";
+        return;
+    }
+
     std::atomic<uint64_t>    total_bytes_sent{0};
     std::vector<std::thread> threads;
     auto                     start_time = std::chrono::steady_clock::now();
@@ -109,6 +124,11 @@ void udp_benchmark(const std::string& server_ip, int port,
 
     bool use_duration       = (total_packets == 0 && duration_sec > 0);
     int  packets_per_thread = use_duration ? 0 : (total_packets / thread_count);
+    int  remainder          = use_duration ? 0 : (total_packets % thread_count);
+
+    if (remainder > 0) {
+        std::cout << "[Note] Total packets not evenly divisible; " << remainder << " extra packets distributed.\n";
+    }
 
     for (int i = 0; i < thread_count; ++i) {
         threads.emplace_back([&, i]() {
@@ -131,7 +151,8 @@ void udp_benchmark(const std::string& server_ip, int port,
                     total_bytes_sent += pkt.size();
                 }
             } else {
-                for (int j = 0; j < packets_per_thread; ++j) {
+                int actual_packets = packets_per_thread + (i < remainder ? 1 : 0);
+                for (int j = 0; j < actual_packets; ++j) {
                     if (sendto(sockfd, pkt.data(), pkt.size(), 0, (struct sockaddr*)&addr, sizeof(addr)) <= 0) {
                         break;
                     }
@@ -155,6 +176,8 @@ void udp_benchmark(const std::string& server_ip, int port,
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count()
         / 1000.0;
 
+    if (elapsed <= 0) elapsed = 1e-3;  // 避免除零
+
     double throughput_mbps = (total_bytes_sent * 8.0) / (elapsed * 1e6);
     double throughput_mps  = total_bytes_sent / (1024.0 * 1024.0) / elapsed;
 
@@ -167,7 +190,17 @@ void udp_benchmark(const std::string& server_ip, int port,
     std::cout << "Throughput: " << throughput_mbps << " Mbps (" << throughput_mps << " MB/s)\n\n";
 }
 
+// 信号处理器
+void signal_handler(int signum) {
+    std::cout << "\nReceived signal " << signum << ", stopping benchmark...\n";
+    stop_flag = true;
+}
+
 int main(int argc, char* argv[]) {
+    // 注册信号处理器
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
     if (argc < 2) {
         std::cerr << "Usage:\n"
                   << "  " << argv[0] << " tcp [concurrency=100] [payload=100] [requests=1000] [duration=0]\n"
@@ -203,5 +236,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
-// g++ -o net_benchmark_test net_benchmark_test.cpp -pthread
