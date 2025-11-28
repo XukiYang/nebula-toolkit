@@ -135,7 +135,7 @@ public:
     /// @param check_sz_cb_
     /// @param exec_cb_
     /// @param buffer_size
-    void SetConnHandlerParams(containers::HeadKey&& head_key, containers::TailKey&& tail_key,
+    void SetConnHandlerParams(containers::HeadKey head_key, containers::TailKey tail_key,
                               containers::DataSzCb data_sz_cb, containers::CheckValidCb check_sz_cb, ExecCb exec_cb,
                               size_t buffer_size = 1024) {
         head_key_    = std::move(head_key);

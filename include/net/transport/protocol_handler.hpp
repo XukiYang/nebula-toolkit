@@ -14,7 +14,7 @@ namespace net {
 
 /// @brief 业务执行回调类型定义
 /// @param packs 解析后的数据包
-using ExecCb = std::function<void(std::vector<std::vector<uint8_t>>& packs)>;
+using ExecCb = std::function<void(const std::vector<std::vector<uint8_t>>& packs)>;
 
 /// @brief 协议处理器基类
 /// 处理不同协议的事件，提供统一接口
@@ -103,11 +103,10 @@ private:
                 unpacker_->Get(packs_);
 
                 if (!packs_.empty() && cb_ && !should_close_) {
-                    auto timer_task = [this]() {
-                        if (is_closed_) {  // 检查是否已关闭
-                            return 0;
-                        }
-                        cb_(packs_);
+                    auto local_packs = std::move(packs_);
+                    packs_.clear();
+                    auto timer_task = [cb = cb_, packs = std::move(local_packs)]() mutable {
+                        cb(packs);
                         return 0;
                     };
                     timer_shceduler_->ScheduleOnce(0, timer_task);

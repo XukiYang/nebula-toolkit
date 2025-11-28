@@ -33,22 +33,24 @@ int main() {
     }
 
     // 定义回调函数
-    auto exec_cb = [](std::vector<std::vector<uint8_t>>& packs) -> void {
-        for (const auto& vec : packs) {
-            fmt::print("PackData: ");
-            fmt::print("{}", fmt::join(vec, " "));
-            fmt::print("\n");
-        }
+    auto exec_cb = [](const std::vector<std::vector<uint8_t>>& packs) -> void {
+        // for (const auto& vec : packs) {
+        // fmt::print("PackData");
+        // fmt::print("{}", fmt::join(vec, " "));
+        // fmt::print("\n\n");
+        // }
+
+        fmt::println("PasingDataPacket {}", packs.size());
     };
 
     // 注册TCP监听套接字
     reactor.RegisterProtocol(tcp_fd, nullptr, true);
-    reactor.SetConnHandlerParams({0xE, 0xD},  // head_key
-                                 {0xA},       // tail_key
-                                 nullptr,     // data_sz_cb
-                                 nullptr,     // check_sz_cb
-                                 exec_cb,     // exec_cb
-                                 8192         // buffer_size
+    reactor.SetConnHandlerParams({0xE, 0xD, 0xF},  // head_key
+                                 {0xA, 0xE},       // tail_key
+                                 nullptr,          // data_sz_cb
+                                 nullptr,          // check_sz_cb
+                                 exec_cb,          // exec_cb
+                                 8192              // buffer_size
     );
     std::cout << "Server started. Listening on TCP:8080\n";
     std::cout << "Press Ctrl+C to exit...\n";
