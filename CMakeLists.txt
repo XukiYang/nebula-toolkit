@@ -47,8 +47,8 @@ set(SOURCES
     # tests/unit/memory/memory_pool_test.cpp
     # tests/unit/logger/logger_test.cpp
     # tests/net_demo/epoll_udp_tcp.cpp
-    # tests/unit/net/net_reactor_test.cpp
-    tests/unit/logger/crash_core_logger.cpp
+    tests/unit/net/net_reactor_test.cpp
+    # tests/unit/logger/crash_core_logger.cpp
 )
 # add_library(${PROJECT_NAME} STATIC ${SOURCES}) # 静态库
 # 或生成可执行文件：
