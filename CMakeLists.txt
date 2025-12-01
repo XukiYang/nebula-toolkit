@@ -10,10 +10,22 @@ project(nebula-toolkit # 项目名称
 #----------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 17) # C++标准 (11/14/17/20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # 强制使用指定标准
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # 生成 compile_commands.json
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # 生成 compile_commands.json 
+set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)# 强制使用Debug模式，并确保调试符号
 
 # 设置输出目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output)
+
+# 确保生成完整的调试信息
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # 添加调试标志
+    add_compile_options(-g -O0 -ggdb3)
+    add_compile_options(-fno-omit-frame-pointer)  # 保留帧指针，对backtrace很重要
+    # 确保符号不被剥离
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic -Wl,--export-dynamic")
+    message(STATUS "Debug build: 启用完整调试信息")
+endif()
+
 
 #----------------------------------------------------------------
 # 2. 添加头文件目录
@@ -31,12 +43,12 @@ set(SOURCES
     # tests/unit/thread_pool_test.cpp
     # tests/unit/timer_scheduler.cpp
     # tests/unit/unpacker_test.cpp
-    # tests/unit/logger_test.cpp
     # tests/unit/config_handler/ini_config_handler.cpp
     # tests/unit/memory/memory_pool_test.cpp
     # tests/unit/logger/logger_test.cpp
     # tests/net_demo/epoll_udp_tcp.cpp
-    tests/unit/net/net_reactor_test.cpp
+    # tests/unit/net/net_reactor_test.cpp
+    tests/unit/logger/crash_core_logger.cpp
 )
 # add_library(${PROJECT_NAME} STATIC ${SOURCES}) # 静态库
 # 或生成可执行文件：
