@@ -374,20 +374,6 @@ public:
     }
 };
 
-#define LOG_MSG(...)   Logger::Instance().LogCout(Logger::MSG, __func__, __LINE__, __VA_ARGS__)
-#define LOG_INFO(...)  Logger::Instance().LogCout(Logger::INFO, __func__, __LINE__, __VA_ARGS__)
-#define LOG_WARN(...)  Logger::Instance().LogCout(Logger::WARN, __func__, __LINE__, __VA_ARGS__)
-#define LOG_DEBUG(...) Logger::Instance().LogCout(Logger::DEBUG, __func__, __LINE__, __VA_ARGS__)
-#define LOG_ERROR(...) Logger::Instance().LogCout(Logger::ERROR, __func__, __LINE__, __VA_ARGS__)
-
-#define LOGP_MSG(fmt, ...)   Logger::Instance().LogPrint(Logger::MSG, __func__, __LINE__, fmt, ##__VA_ARGS__)
-#define LOGP_INFO(fmt, ...)  Logger::Instance().LogPrint(Logger::INFO, __func__, __LINE__, fmt, ##__VA_ARGS__)
-#define LOGP_WARN(fmt, ...)  Logger::Instance().LogPrint(Logger::WARN, __func__, __LINE__, fmt, ##__VA_ARGS__)
-#define LOGP_DEBUG(fmt, ...) Logger::Instance().LogPrint(Logger::DEBUG, __func__, __LINE__, fmt, ##__VA_ARGS__)
-#define LOGP_ERROR(fmt, ...) Logger::Instance().LogPrint(Logger::ERROR, __func__, __LINE__, fmt, ##__VA_ARGS__)
-
-#define LOGMSG_VECTOR(vector) Logger::Instance().LogVector(Logger::MSG, __func__, __LINE__, vector)
-
 #define LOG_MSG(...)   nebula::logger::Logger::Instance().LogCout(nebula::logger::Logger::MSG, __func__, __LINE__, __VA_ARGS__)
 #define LOG_INFO(...)  nebula::logger::Logger::Instance().LogCout(nebula::logger::Logger::INFO, __func__, __LINE__, __VA_ARGS__)
 #define LOG_WARN(...)  nebula::logger::Logger::Instance().LogCout(nebula::logger::Logger::WARN, __func__, __LINE__, __VA_ARGS__)
