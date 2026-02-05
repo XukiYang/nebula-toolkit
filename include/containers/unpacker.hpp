@@ -26,15 +26,16 @@ using HeadKey = std::vector<uint8_t>;
 using TailKey = std::vector<uint8_t>;
 
 class UnPacker : public CircularBuffer {
-    enum Result { /* 成功 */ kSuccess = 0, /* 错误 */ kError = -1, /* 未知 */ kNone };
-    enum Mode { /* none */ kNone,
-                /* 仅头定位模式 */ kHead,
-                /* 头尾定位模式 */ kHeadTail,
-                /* 头尾校验定位模式 */ kHeadTailCb };
-    enum IncludeMode { /* 不包含头或者尾 */ kNone, /* 包含 */ kInclude };
+    enum class Result { /* 成功 */ kSuccess = 0, /* 错误 */ kError = -1, /* 未知 */ kNone };
+    enum class Mode { /* none */ kNone,
+                      /* 仅头定位模式 */ kHead,
+                      /* 头尾定位模式 */ kHeadTail,
+                      /* 头尾校验定位模式 */ kHeadTailCb };
+    enum class IncludeMode { /* 不包含头或者尾 */ kNone, /* 包含 */ kInclude };
 
     // 暂不实现
-    enum BufferMode { /* 自动扩容 */ kAuto, /* 参数控制 */ kParam };
+    enum class BufferMode { /* 自动扩容 */ kAuto, /* 参数控制 */ kParam };
+    
     struct Option {
         uint32_t    buffer_size;
         IncludeMode include_mode;
@@ -108,7 +109,7 @@ public:
     /// @return 提交的数据大小
     size_t PushAndGet(const uint8_t *write_data, size_t data_size, std::vector<std::vector<uint8_t>> &read_data) {
         if (write_data == nullptr) {
-            return Result::kError;
+            return 0;  // 无效参数，返回 0
         }
         size_t write_size = Write(reinterpret_cast<const std::byte *>(write_data), data_size);
         LOGP_DEBUG("write_ret:%d,AvailableToRead:%d", write_size, AvailableToRead());
@@ -119,11 +120,12 @@ public:
 
     /// @brief 仅解析已有的数据包
     /// @param read_data
-    /// @return
+    /// @return 解析的数据包数量
     size_t Get(std::vector<std::vector<uint8_t>> &read_data) {
         LOGP_DEBUG("Get Pack,AvailableToRead:%d", AvailableToRead());
         if (read_data.size() > 0) read_data.clear();  // 清空容器留存包，避免重复处理
-        return GetPack(read_data);
+        GetPack(read_data);
+        return read_data.size();  // 返回解析的数据包数量
     };
 
 private:
@@ -380,7 +382,7 @@ private:
             CommitReadSize(packet_size);
         }
 
-        return kSuccess;
+        return Result::kSuccess;
     }
 
     /// @brief 头尾定位符以及回调分包模式
@@ -445,7 +447,7 @@ private:
             }
         }
 
-        return kSuccess;
+        return Result::kSuccess;
     }
 };
 
