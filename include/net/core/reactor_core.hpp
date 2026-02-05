@@ -20,7 +20,7 @@
 
 namespace nebula {
 namespace net {
-
+namespace core {
 class ReactorCore {
 public:
     ReactorCore(uint64_t max_events = 64) : max_events_(max_events) {
@@ -33,7 +33,7 @@ public:
         if (epoll_fd_ >= 0) close(epoll_fd_);
 
         // 清理所有处理器
-        for (auto& handler : protocol_handlers_) {
+        for (auto &handler : protocol_handlers_) {
             close(handler.first);
         }
     }
@@ -42,7 +42,7 @@ public:
     /// @param fd
     /// @param handler
     /// @param is_listener
-    void RegisterProtocol(int fd, std::unique_ptr<ProtocolHandler> handler, bool is_listener = false) {
+    void RegisterProtocol(int fd, std::unique_ptr<transport::ProtocolHandler> handler, bool is_listener = false) {
         // 配置epoll事件 水平触发或边缘触发
         epoll_event ev{};
         ev.events  = EPOLLIN | EPOLLET;
@@ -90,15 +90,21 @@ public:
                 uint32_t revents = events[i].events;
 
                 // 构造事件对象
-                Event ev;
+                transport::Event ev;
                 ev.fd          = fd;
-                ev.event_flags = static_cast<EventFlags>(0);  // 初始化为无事件
+                ev.event_flags = static_cast<transport::EventFlags>(0);  // 初始化为无事件
 
-                if (revents & EPOLLIN) ev.event_flags = static_cast<EventFlags>(ev.event_flags | EventFlags::kReadable);
+                if (revents & EPOLLIN)
+                    ev.event_flags =
+                        static_cast<transport::EventFlags>(ev.event_flags | transport::EventFlags::kReadable);
                 if (revents & EPOLLOUT)
-                    ev.event_flags = static_cast<EventFlags>(ev.event_flags | EventFlags::kWritable);
-                if (revents & EPOLLERR) ev.event_flags = static_cast<EventFlags>(ev.event_flags | EventFlags::kError);
-                if (revents & EPOLLHUP) ev.event_flags = static_cast<EventFlags>(ev.event_flags | EventFlags::kHangUp);
+                    ev.event_flags =
+                        static_cast<transport::EventFlags>(ev.event_flags | transport::EventFlags::kWritable);
+                if (revents & EPOLLERR)
+                    ev.event_flags = static_cast<transport::EventFlags>(ev.event_flags | transport::EventFlags::kError);
+                if (revents & EPOLLHUP)
+                    ev.event_flags =
+                        static_cast<transport::EventFlags>(ev.event_flags | transport::EventFlags::kHangUp);
 
                 // 如果是监听套接字（TCP）
                 if (listeners_.find(fd) != listeners_.end()) {
@@ -111,7 +117,7 @@ public:
                 if (it != protocol_handlers_.end()) {
                     try {
                         it->second->HandleEvent(epoll_fd_, ev, timer_shceduler_);
-                    } catch (const std::exception& e) {
+                    } catch (const std::exception &e) {
                         LOGP_MSG("Error handling fd:%d - %s", fd, e.what());
                         UnregisterFd(fd);
                     }
@@ -137,8 +143,8 @@ public:
     /// @param exec_cb_
     /// @param buffer_size
     void SetConnHandlerParams(containers::HeadKey head_key, containers::TailKey tail_key,
-                              containers::DataSzCb data_sz_cb, containers::CheckValidCb check_sz_cb, ExecCb exec_cb,
-                              size_t buffer_size = 1024) {
+                              containers::DataSzCb data_sz_cb, containers::CheckValidCb check_sz_cb,
+                              transport::ExecCb exec_cb, size_t buffer_size = 1024) {
         head_key_    = std::move(head_key);
         tail_key_    = std::move(tail_key);
         data_sz_cb_  = std::move(data_sz_cb);
@@ -172,7 +178,7 @@ private:
             sockaddr_in client_addr{};
             socklen_t   addr_len = sizeof(client_addr);
 
-            int conn_fd = accept4(listen_fd, (sockaddr*)&client_addr, &addr_len, SOCK_NONBLOCK);
+            int conn_fd = accept4(listen_fd, (sockaddr *)&client_addr, &addr_len, SOCK_NONBLOCK);
 
             if (conn_fd < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) break;
@@ -200,10 +206,10 @@ private:
                                                                  buffer_size_);
         } else {
             // 使用基本解包器
-            unpacker = containers::UnPacker::CreateBasic(head_key_, tail_key_, buffer_size_);
+            unpacker = containers::UnPacker::CreateHeadTail(head_key_, tail_key_, buffer_size_);
         }
         // 创建TCP处理器
-        auto handler = std::make_unique<TcpHandler>(conn_fd, std::move(unpacker));
+        auto handler = std::make_unique<transport::TcpHandler>(conn_fd, std::move(unpacker));
         // 设置业务执行回调
         if (exec_cb_) {
             handler->SetCallback(exec_cb_);
@@ -226,15 +232,16 @@ private:
     size_t                   buffer_size_ = 0;
 
     // 处理器业务执行回调
-    ExecCb exec_cb_ = nullptr;
+    transport::ExecCb exec_cb_ = nullptr;
 
     // 协议处理器映射与TCP监听套接字
-    std::unordered_map<int, std::unique_ptr<ProtocolHandler>> protocol_handlers_;
-    std::unordered_set<int>                                   listeners_;
+    std::unordered_map<int, std::unique_ptr<transport::ProtocolHandler>> protocol_handlers_;
+    std::unordered_set<int>                                              listeners_;
 
     // 定时线程池依赖
     std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
 };
 
+}  // namespace core
 }  // namespace net
 }  // namespace nebula

@@ -7,7 +7,9 @@
 
 #include <string>
 
+namespace nebula {
 namespace net {
+namespace transport {
 
 class SocketCreator {
 public:
@@ -73,4 +75,6 @@ public:
         return fd;
     }
 };
+}  // namespace transport
 }  // namespace net
+}  // namespace nebula

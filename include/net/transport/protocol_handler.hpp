@@ -17,7 +17,7 @@ namespace transport {
 
 /// @brief 业务执行回调类型定义
 /// @param packs 解析后的数据包
-using ExecCb = std::function<void(const std::vector<std::vector<uint8_t>>& packs)>;
+using ExecCb = std::function<void(const std::vector<std::vector<uint8_t>> &packs)>;
 
 /// @brief 协议处理器基类
 /// 处理不同协议的事件，提供统一接口
@@ -25,7 +25,7 @@ using ExecCb = std::function<void(const std::vector<std::vector<uint8_t>>& packs
 /// 通过继承此类实现具体协议的处理逻辑
 class ProtocolHandler {
 public:
-    virtual void HandleEvent(int epoll_fd, const Event& event,
+    virtual void HandleEvent(int epoll_fd, const Event &event,
                              std::shared_ptr<threading::TimerScheduler> timer_shceduler) = 0;
     virtual bool ShouldClose() const {
         return false;
@@ -46,7 +46,7 @@ public:
         return should_close_ || is_closed_;
     }
 
-    void HandleEvent(int epoll_fd, const Event& event,
+    void HandleEvent(int epoll_fd, const Event &event,
                      std::shared_ptr<threading::TimerScheduler> timer_shceduler) override {
         timer_shceduler_ = std::move(timer_shceduler);
 
@@ -137,7 +137,7 @@ public:
         cb_ = std::move(cb);
     }
 
-    void HandleEvent(int epoll_fd, const Event& event,
+    void HandleEvent(int epoll_fd, const Event &event,
                      std::shared_ptr<threading::TimerScheduler> timer_shceduler) override {
         timer_shceduler_ = std::move(timer_shceduler);
 
@@ -155,7 +155,7 @@ public:
                 }
                 struct sockaddr_storage addr;
                 socklen_t               addr_len = sizeof(addr);
-                ssize_t len = recvfrom(fd_, buffer, capacity, 0, reinterpret_cast<sockaddr*>(&addr), &addr_len);
+                ssize_t len = recvfrom(fd_, buffer, capacity, 0, reinterpret_cast<sockaddr *>(&addr), &addr_len);
 
                 if (len == -1) {
                     // 读取完毕

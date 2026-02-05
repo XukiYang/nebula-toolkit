@@ -4,13 +4,14 @@
 #include "../logger/logger.hpp"
 #include "thread_pool.hpp"
 
+namespace nebula {
 namespace threading {
 struct TimerTask {
     std::chrono::steady_clock::time_point exec_time;
     CallBack                              callback;
     uint64_t                              task_id;  // 用于任务取消
 
-    bool operator<(const TimerTask& other) const {
+    bool operator<(const TimerTask &other) const {
         return exec_time > other.exec_time;  // 小堆序
     }
 };
@@ -101,7 +102,7 @@ public:
                 continue;
             }
 
-            const auto& next_timer_task = timer_tasks_.top();
+            const auto &next_timer_task = timer_tasks_.top();
             // 到时间的任务则提交到线程池托管执行
             if (std::chrono::steady_clock::now() >= next_timer_task.exec_time) {
                 auto cur_timer_task = next_timer_task;
@@ -115,3 +116,4 @@ public:
     };
 };
 };  // namespace threading
+};  // namespace nebula

@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
+namespace nebula {
 namespace logger {
 class CrashCoreLogger {
 public:
@@ -204,3 +205,4 @@ private:
     std::unordered_map<int, sighandler_t> original_handlers_;
 };
 }  // namespace logger
+}  // namespace nebula

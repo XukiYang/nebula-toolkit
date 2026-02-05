@@ -18,19 +18,19 @@ std::atomic<bool> running{true};
 // signal(SIGINT, signalHandler);
 
 int main() {
-    logger::CrashCoreLogger::getInstance().SetFilePath("crash_dump");
-    logger::CrashCoreLogger::getInstance().SetMaxStackDepth(50);
-    logger::CrashCoreLogger::getInstance().EnableTimestampFilenames(true);
+    nebula::logger::CrashCoreLogger::getInstance().SetFilePath("crash_dump");
+    nebula::logger::CrashCoreLogger::getInstance().SetMaxStackDepth(50);
+    nebula::logger::CrashCoreLogger::getInstance().EnableTimestampFilenames(true);
 
-    using namespace net;
-    ReactorCore reactor;
+    using namespace nebula;
+    net::core::ReactorCore reactor;
 
     // 定时线程池依赖注入
     auto timer_scheduler = std::make_shared<threading::TimerScheduler>();
     reactor.SetTimerScheduler(std::move(timer_scheduler));
 
     // 创建TCP服务器套接字
-    int tcp_fd = SocketCreator::CreateTcpSocket("0.0.0.0", 8080, true, SOMAXCONN);
+    int tcp_fd = net::transport::SocketCreator::CreateTcpSocket("0.0.0.0", 8080, true, SOMAXCONN);
     if (tcp_fd < 0) {
         std::cerr << "Failed to create TCP socket\n";
         return 1;
