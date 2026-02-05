@@ -10,7 +10,10 @@
 #include "../../containers/unpacker.hpp"
 #include "../../threading/timer_scheduler.hpp"
 #include "enums.hpp"
+
+namespace nebula {
 namespace net {
+namespace transport {
 
 /// @brief 业务执行回调类型定义
 /// @param packs 解析后的数据包
@@ -192,4 +195,6 @@ private:
     std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
 };
 
+}  // namespace transport
 }  // namespace net
+}  // namespace nebula

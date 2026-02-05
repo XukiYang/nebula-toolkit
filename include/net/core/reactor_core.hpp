@@ -18,6 +18,7 @@
 #include "../transport/enums.hpp"
 #include "../transport/protocol_handler.hpp"
 
+namespace nebula {
 namespace net {
 
 class ReactorCore {
@@ -236,3 +237,4 @@ private:
 };
 
 }  // namespace net
+}  // namespace nebula

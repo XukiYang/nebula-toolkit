@@ -12,14 +12,15 @@
 #include <mutex>
 #include <vector>
 
+namespace nebula {
 namespace containers {
 
 /// @brief 环形缓冲区
 /// @note 一般线程安全、支持迭代器、0拷贝的线性操作、基本符合google style
-class RingBuffer {
+class CircularBuffer {
 public:
     /// @brief 返回结果枚举
-    enum class Result {
+    enum Result {
         kSuccess          = 0,   // 成功
         kErrorFull        = -1,  // 满
         kErrorEmpty       = -2,  // 空
@@ -29,13 +30,12 @@ public:
 public:
     /// @brief 基于实际缓冲区大小构造
     /// @param buffer_size
-    explicit RingBuffer(size_t buffer_size) : buffer_(buffer_size){};
+    explicit CircularBuffer(size_t buffer_size) : buffer_(buffer_size){}
 
     /// @brief 写数据到缓冲区
     /// @param write_data
     /// @return
-    template <typename T>
-    size_t Write(const std::vector<T>& write_data) {
+    template <typename T>size_t Write(const std::vector<T>& write_data) {
         std::lock_guard<std::mutex> lock(mutex_);
 
         if (write_data.empty()) return (size_t)Result::kErrorEmpty;
@@ -57,7 +57,7 @@ public:
         write_index_ = (write_index_ + write_data_size) % buffer_.size();
         length_ += write_data_size;
         return write_data_size;
-    };
+    }
 
     /// @brief 读取数据到std::vector
     /// @param read_data
@@ -102,14 +102,13 @@ public:
 
         length_ -= bytes_to_read;
         return bytes_to_read;
-    };
+    }
 
-#if __cplusplus >= 201703L
-    /// @brief 读取指定字节数据到std::byte *
+    /// @brief 读取指定字节数据到uint8_t *
     /// @param read_ptr
     /// @param bytes_to_read
     /// @return
-    size_t Read(std::byte* read_ptr, size_t bytes_to_read) {
+    size_t Read(uint8_t* read_ptr, size_t bytes_to_read) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (bytes_to_read == 0) return (size_t)Result::kErrorEmpty;
         const size_t available = AvailableToRead();
@@ -130,11 +129,19 @@ public:
         return bytes_to_read;
     }
 
-    /// @brief 写入std::byte *指定字节数据
+    /// @brief 读取指定字节数据到void *
+    /// @param read_ptr
+    /// @param bytes_to_read
+    /// @return
+    size_t Read(void* read_ptr, size_t bytes_to_read) {
+        return Read(reinterpret_cast<uint8_t*>(read_ptr), bytes_to_read);
+    }
+
+    /// @brief 写入uint8_t *指定字节数据
     /// @param write_ptr
     /// @param bytes_to_write
     /// @return
-    size_t Write(const std::byte* write_ptr, size_t bytes_to_write) {
+    size_t Write(const uint8_t* write_ptr, size_t bytes_to_write) {
         std::lock_guard<std::mutex> lock(mutex_);
 
         if (bytes_to_write == 0) {
@@ -157,7 +164,51 @@ public:
         length_ += bytes_to_write;
         return bytes_to_write;
     }
-#endif
+
+    /// @brief 写入void *指定字节数据
+    /// @param write_ptr
+    /// @param bytes_to_write
+    /// @return
+    size_t Write(const void* write_ptr, size_t bytes_to_write) {
+        return Write(reinterpret_cast<const uint8_t*>(write_ptr), bytes_to_write);
+    }
+
+    /// @brief 写入字符串数据
+    /// @param data
+    /// @return
+    size_t Write(const std::string& data) {
+        return Write(data.data(), data.size());
+    }
+
+    /// @brief 读取数据到字符串
+    /// @param data
+    /// @param bytes_to_read
+    /// @return
+    size_t Read(std::string& data, size_t bytes_to_read) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (bytes_to_read == 0) return (size_t)Result::kErrorEmpty;
+        
+        const size_t available = AvailableToRead();
+        if (bytes_to_read > available) {
+            return (size_t)Result::kErrorFull;  // 可读空间不足
+        }
+
+        data.resize(bytes_to_read);
+        size_t result = Read(&data[0], bytes_to_read);
+        if (result != bytes_to_read) {
+            data.clear();
+        }
+        return result;
+    }
+
+    /// @brief 自动调整大小的读取
+    /// @param read_data
+    /// @param bytes_to_read
+    /// @return
+    size_t ReadAutoResize(std::vector<uint8_t>& read_data, size_t bytes_to_read) {
+        read_data.resize(bytes_to_read);
+        return Read(read_data, bytes_to_read);
+    }
 
 public:
     /// @brief hex打印缓冲区
@@ -199,7 +250,7 @@ public:
     /// @return
     size_t Capacity() const {
         return buffer_.size();
-    };
+    }
 
     /// @brief 清空缓冲区
     /// @return
@@ -231,6 +282,30 @@ public:
 
         if (bytes_to_read > first_chunk) {
             memcpy(read_data.data() + first_chunk, buffer_.data(), bytes_to_read - first_chunk);
+        }
+        // 不变动读标志与已读标志
+        return bytes_to_read;
+    }
+
+    /// @brief 仅读数据到void*，不出队
+    /// @return 读取是否成功
+    size_t Peek(void* read_ptr, size_t bytes_to_read) {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        if (bytes_to_read == 0) return 0;
+
+        const size_t available = AvailableToRead();
+        if (bytes_to_read > available) {
+            return -1;  // 可读数据不足
+        }
+
+        uint8_t* dest_ptr = reinterpret_cast<uint8_t*>(read_ptr);
+        const size_t first_chunk = std::min(bytes_to_read, buffer_.size() - read_index_);
+
+        memcpy(dest_ptr, buffer_.data() + read_index_, first_chunk);
+
+        if (bytes_to_read > first_chunk) {
+            memcpy(dest_ptr + first_chunk, buffer_.data(), bytes_to_read - first_chunk);
         }
         // 不变动读标志与已读标志
         return bytes_to_read;
@@ -274,7 +349,7 @@ public:
     /// @return
     bool IsFull() const {
         return length_ == buffer_.size();
-    };
+    }
 
     /// @brief 容量使用率
     /// @return 使用率
@@ -333,7 +408,7 @@ public:
     }
 
     /// @brief 提交线性读取字节数
-    /// @param write_size
+    /// @param read_size
     /// @return
     Result CommitReadSize(size_t read_size) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -344,7 +419,7 @@ public:
         read_index_ = (read_index_ + read_size) % buffer_.size();
         length_ -= read_size;
         return Result::kSuccess;
-    };
+    }
 
 public:
     size_t               read_index_  = 0;
@@ -355,3 +430,4 @@ public:
 };
 
 }  // namespace containers
+}  // namespace nebula

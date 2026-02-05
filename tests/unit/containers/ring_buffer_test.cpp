@@ -7,7 +7,7 @@
 
 void General_IO_Testing() {
     LOG_MSG("General_IO_Testing");
-    containers::RingBuffer ring_buffer(30);
+    containers::CircularBuffer ring_buffer(30);
     std::vector<uint8_t>   in = {'h', 'e', 'l', 'l', 'o'}, out;
 
     // 写入5*5字节
@@ -33,7 +33,7 @@ void General_IO_Testing() {
     ring_buffer.PrintBuffer();
 
     // 可写测试
-    containers::RingBuffer ring_buffer_2(1);
+    containers::CircularBuffer ring_buffer_2(1);
     in           = {'t'};
     size_t w_ret = ring_buffer_2.Write(in);
     LOGP_MSG("write ret:%d", w_ret);
@@ -49,7 +49,7 @@ void General_IO_Testing() {
     LOGP_MSG("read ret:%d", r_ret);
 
     // 环绕读写测试
-    containers::RingBuffer ring_buffer_3(5);
+    containers::CircularBuffer ring_buffer_3(5);
     ring_buffer_3.Write(std::vector<uint8_t>{1, 2, 3, 4, 5});
     ring_buffer_3.PrintBuffer();
     ring_buffer_3.Read(out, 3);
@@ -59,7 +59,7 @@ void General_IO_Testing() {
 
 void General_Fullempty_Testing() {
     LOG_MSG("General_Fullempty_Testing");
-    containers::RingBuffer ring_buffer(5);
+    containers::CircularBuffer ring_buffer(5);
     std::vector<uint8_t>   in = {'w', 'o', 'r', 'l', 'd'}, out;
 
     LOGP_MSG("IsEmpty:%d,IsFull:%d,Usage:%f", ring_buffer.IsEmpty() * 1e2, ring_buffer.IsFull(), ring_buffer.Usage());
@@ -77,7 +77,7 @@ void General_IO_CustTime_Testing() {
     // 测试次数
     constexpr size_t measurement_count = 500;
 
-    containers::RingBuffer ring_buffer(64 * 4 * 1024);
+    containers::CircularBuffer ring_buffer(64 * 4 * 1024);
     std::vector<std::byte> read_data_buf(read_size);
     std::vector<std::byte> write_data_buf(read_size);
 

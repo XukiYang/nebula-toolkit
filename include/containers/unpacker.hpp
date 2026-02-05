@@ -2,8 +2,9 @@
 #include <functional>
 
 #include "../logger/logger.hpp"
-#include "ring_buffer.hpp"
+#include "circular_buffer.hpp"
 
+namespace nebula {
 namespace containers {
 
 /// @brief 解析字节数回调:外部定义自定义解析逻辑
@@ -24,14 +25,13 @@ using HeadKey = std::vector<uint8_t>;
 /// @brief 尾定位符
 using TailKey = std::vector<uint8_t>;
 
-class UnPacker : public RingBuffer {
+class UnPacker : public CircularBuffer {
     enum Result { /* 成功 */ kSuccess = 0, /* 错误 */ kError = -1, /* 未知 */ kNone };
     enum Mode { /* none */ kNone,
                 /* 仅头定位模式 */ kHead,
                 /* 头尾定位模式 */ kHeadTail,
                 /* 头尾校验定位模式 */ kHeadTailCb };
     enum IncludeMode { /* 不包含头或者尾 */ kNone, /* 包含 */ kInclude };
-
 
     // 暂不实现
     enum BufferMode { /* 自动扩容 */ kAuto, /* 参数控制 */ kParam };
@@ -133,7 +133,7 @@ private:
     /// @param buffer_size 缓冲区大小
     /// @param include_mode 是否包含定位符
     UnPacker(HeadKey &&head_key, TailKey &&tail_key, uint32_t buffer_size, IncludeMode include_mode)
-        : RingBuffer(buffer_size),
+        : CircularBuffer(buffer_size),
           head_key_(std::move(head_key)),
           tail_key_(std::move(tail_key)),
           data_sz_cb_(nullptr),
@@ -152,7 +152,7 @@ private:
     /// @param include_mode 是否包含定位符
     UnPacker(HeadKey &&head_key, TailKey &&tail_key, DataSzCb &&data_sz_cb, CheckValidCb &&check_valid_cb,
              uint32_t buffer_size, IncludeMode include_mode)
-        : RingBuffer(buffer_size),
+        : CircularBuffer(buffer_size),
           head_key_(std::move(head_key)),
           tail_key_(std::move(tail_key)),
           data_sz_cb_(std::move(data_sz_cb)),
@@ -450,3 +450,4 @@ private:
 };
 
 }  // namespace containers
+}  // namespace nebula

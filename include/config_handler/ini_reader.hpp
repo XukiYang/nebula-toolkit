@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 
+namespace nebula {
 namespace config_handler {
 
 class IniReader {
@@ -113,4 +114,6 @@ private:
         return s;
     }
 };
+
 }  // namespace config_handler
+}  // namespace nebula

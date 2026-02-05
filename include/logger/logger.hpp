@@ -18,9 +18,10 @@
 #include <thread>
 #include <vector>
 
-#include "../containers/ring_buffer.hpp"
-#include "./config_handler/ini_reader.hpp"
+#include "../containers/circular_buffer.hpp"
+#include "../config_handler/ini_reader.hpp"
 
+namespace nebula {
 namespace configs {
 struct LogGlobal {
     size_t      max_file_size = 1024 * 1024;  // 1MB
@@ -43,7 +44,9 @@ struct LogLevel {
     bool debug = false;
     bool error = false;
 };
-};  // namespace configs
+}  // namespace configs
+
+namespace logger {
 
 struct FileManager {
     std::ofstream file;
@@ -75,7 +78,7 @@ private:
 
     std::mutex                              ring_buffer_mutex_;
     std::condition_variable                 cv;
-    std::unique_ptr<containers::RingBuffer> ring_buffer_;  // async buffer
+    std::unique_ptr<containers::CircularBuffer> ring_buffer_;  // async buffer
     std::unique_ptr<std::thread>            cust_thread_;
 
     std::atomic<bool> cust_thread_running_{true};
@@ -245,7 +248,7 @@ private:
 public:
     Logger()
         : ini_reader_(std::make_unique<config_handler::IniReader>(CONFIG_PATH)),
-          ring_buffer_(std::make_unique<containers::RingBuffer>(log_async_config_.ring_buffer_size_kb)) {
+          ring_buffer_(std::make_unique<containers::CircularBuffer>(log_async_config_.ring_buffer_size_kb)) {
         UpdateConfig();
         config_monitor_ = std::make_unique<std::thread>([this] { MonitorConfigChanges(); });
         cust_thread_    = std::make_unique<std::thread>([this] { CustThreadProc(); });
@@ -385,8 +388,25 @@ public:
 
 #define LOGMSG_VECTOR(vector) Logger::Instance().LogVector(Logger::MSG, __func__, __LINE__, vector)
 
-#define LOGF_MSG(fmt, ...)   Logger::Instance().LogFmt(Logger::MSG, __func__, __LINE__, fmt, __VA_ARGS__)
-#define LOGF_INFO(fmt, ...)  Logger::Instance().LogFmt(Logger::INFO, __func__, __LINE__, fmt, __VA_ARGS__)
-#define LOGF_WARN(fmt, ...)  Logger::Instance().LogFmt(Logger::WARN, __func__, __LINE__, fmt, __VA_ARGS__)
-#define LOGF_DEBUG(fmt, ...) Logger::Instance().LogFmt(Logger::DEBUG, __func__, __LINE__, fmt, __VA_ARGS__)
-#define LOGF_ERROR(fmt, ...) Logger::Instance().LogFmt(Logger::MSG, __func__, __LINE__, fmt, __VA_ARGS__)
+#define LOG_MSG(...)   nebula::logger::Logger::Instance().LogCout(nebula::logger::Logger::MSG, __func__, __LINE__, __VA_ARGS__)
+#define LOG_INFO(...)  nebula::logger::Logger::Instance().LogCout(nebula::logger::Logger::INFO, __func__, __LINE__, __VA_ARGS__)
+#define LOG_WARN(...)  nebula::logger::Logger::Instance().LogCout(nebula::logger::Logger::WARN, __func__, __LINE__, __VA_ARGS__)
+#define LOG_DEBUG(...) nebula::logger::Logger::Instance().LogCout(nebula::logger::Logger::DEBUG, __func__, __LINE__, __VA_ARGS__)
+#define LOG_ERROR(...) nebula::logger::Logger::Instance().LogCout(nebula::logger::Logger::ERROR, __func__, __LINE__, __VA_ARGS__)
+
+#define LOGP_MSG(fmt, ...)   nebula::logger::Logger::Instance().LogPrint(nebula::logger::Logger::MSG, __func__, __LINE__, fmt, ##__VA_ARGS__)
+#define LOGP_INFO(fmt, ...)  nebula::logger::Logger::Instance().LogPrint(nebula::logger::Logger::INFO, __func__, __LINE__, fmt, ##__VA_ARGS__)
+#define LOGP_WARN(fmt, ...)  nebula::logger::Logger::Instance().LogPrint(nebula::logger::Logger::WARN, __func__, __LINE__, fmt, ##__VA_ARGS__)
+#define LOGP_DEBUG(fmt, ...) nebula::logger::Logger::Instance().LogPrint(nebula::logger::Logger::DEBUG, __func__, __LINE__, fmt, ##__VA_ARGS__)
+#define LOGP_ERROR(fmt, ...) nebula::logger::Logger::Instance().LogPrint(nebula::logger::Logger::ERROR, __func__, __LINE__, fmt, ##__VA_ARGS__)
+
+#define LOGMSG_VECTOR(vector) nebula::logger::Logger::Instance().LogVector(nebula::logger::Logger::MSG, __func__, __LINE__, vector)
+
+#define LOGF_MSG(fmt, ...)   nebula::logger::Logger::Instance().LogFmt(nebula::logger::Logger::MSG, __func__, __LINE__, fmt, __VA_ARGS__)
+#define LOGF_INFO(fmt, ...)  nebula::logger::Logger::Instance().LogFmt(nebula::logger::Logger::INFO, __func__, __LINE__, fmt, __VA_ARGS__)
+#define LOGF_WARN(fmt, ...)  nebula::logger::Logger::Instance().LogFmt(nebula::logger::Logger::WARN, __func__, __LINE__, fmt, __VA_ARGS__)
+#define LOGF_DEBUG(fmt, ...) nebula::logger::Logger::Instance().LogFmt(nebula::logger::Logger::DEBUG, __func__, __LINE__, fmt, __VA_ARGS__)
+#define LOGF_ERROR(fmt, ...) nebula::logger::Logger::Instance().LogFmt(nebula::logger::Logger::ERROR, __func__, __LINE__, fmt, __VA_ARGS__)
+
+}  // namespace logger
+}  // namespace nebula

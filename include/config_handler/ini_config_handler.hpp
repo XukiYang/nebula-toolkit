@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 
+namespace nebula {
 namespace config_handler {
 /* 数据值包装类 */
 struct Val {
@@ -241,3 +242,4 @@ public:
 };
 
 }  // namespace config_handler
+}  // namespace nebula

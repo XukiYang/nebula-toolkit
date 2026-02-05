@@ -6,8 +6,9 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
-
 #define ALIGNAS_SIZE 64
+
+namespace nebula {
 namespace containers {
 
 enum class Result { kSuccess = 0, kErrorFull = -1, kErrorEmpty = -2, kErrorInvalidSize = -3, kInvalidParam = -4 };
@@ -52,8 +53,8 @@ public:
         }
     }
 
-    LockFreeQueue(const LockFreeQueue&) = delete;
-    LockFreeQueue& operator=(const LockFreeQueue&) = delete;
+    LockFreeQueue(const LockFreeQueue &) = delete;
+    LockFreeQueue &operator=(const LockFreeQueue &) = delete;
 
     bool Empty() const noexcept {
         auto r = read_index_.load(std::memory_order_acquire);
@@ -101,11 +102,11 @@ public:
         return diff;
     }
 
-    Result Push(const T& item) {
+    Result Push(const T &item) {
         return PushBulk(&item, 1);
     }
 
-    Result PushBulk(const T* items, size_t count) {
+    Result PushBulk(const T *items, size_t count) {
         if (!items || count == 0) {
             return Result::kErrorInvalidSize;
         }
@@ -144,11 +145,11 @@ public:
         return Result::kSuccess;
     }
 
-    Result Pop(T& item) {
+    Result Pop(T &item) {
         return PopBulk(&item, 1);
     }
 
-    Result PopBulk(T* output, size_t count) {
+    Result PopBulk(T *output, size_t count) {
         if (!output || count == 0) {
             return Result::kErrorInvalidSize;
         }
@@ -184,11 +185,11 @@ public:
         return Result::kSuccess;
     }
 
-    Result Peek(T& item) const {
+    Result Peek(T &item) const {
         return PeekBulk(&item, 1);
     }
 
-    Result PeekBulk(T* output, size_t count) const {
+    Result PeekBulk(T *output, size_t count) const {
         if (!output || count == 0) {
             return Result::kErrorInvalidSize;
         }
@@ -216,3 +217,4 @@ public:
     }
 };
 }  // namespace containers
+}  // namespace nebula

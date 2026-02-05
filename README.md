@@ -3,10 +3,10 @@
 
 ## 模块概览
 ### 基础库
-+ RingBuffer:线程安全的环形缓冲区
++ CircularBuffer:线程安全的环形缓冲区
     + 线程安全、线性IO、动态扩容、迭代器支持、0拷贝。
 + ByteStream:基于环形缓冲区的字节序列化工具
-    + 继承于RingBuffer，支持自定义类型、vector、string的左右移运算符序列化。
+    + 继承于CircularBuffer，支持自定义类型、vector、string的左右移运算符序列化。
 + Logger:基于懒汉单例模式的日志库
     + 提供全局宏接口，支持多模式流式打印，提供日志分级，压缩策略、行与函数名开关，最大文件大小配置。
 + UnPacker:基于环形缓冲区的流式解包器

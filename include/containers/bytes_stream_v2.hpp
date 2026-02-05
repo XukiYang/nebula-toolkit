@@ -2,6 +2,7 @@
 #include <cstring>
 #include <iostream>
 #include <vector>
+namespace nebula {
 
 namespace containers {
 constexpr size_t BytesStreamSize = 1024;
@@ -12,15 +13,15 @@ private:
     size_t            read_pos_;
 
 private:
-    BytesStream& operator=(const BytesStream&) = delete;
-    BytesStream(const BytesStream&)            = delete;
+    BytesStream &operator=(const BytesStream &) = delete;
+    BytesStream(const BytesStream &)            = delete;
 
 public:
     explicit BytesStream(size_t buffer_size = BytesStreamSize) : buffer_(buffer_size), write_pos_(0), read_pos_(0) {}
     ~BytesStream() = default;
     /* 自定义类型序列化，仅限结构体 */
     template <typename T>
-    BytesStream& operator<<(const T& data) {
+    BytesStream &operator<<(const T &data) {
         size_t t_size = sizeof(T);
         if (write_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Write overflow in BytesStream");
@@ -30,7 +31,7 @@ public:
         return *this;
     }
     template <typename T>
-    BytesStream& operator>>(T& data) {
+    BytesStream &operator>>(T &data) {
         size_t t_size = sizeof(T);
         if (read_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Read overflow in BytesStream");
@@ -42,7 +43,7 @@ public:
 
     /* Vector类型序列化 */
     template <typename T>
-    BytesStream& operator<<(const std::vector<T>& data) {
+    BytesStream &operator<<(const std::vector<T> &data) {
         size_t t_size = data.size() * sizeof(T);
         if (write_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Write overflow in BytesStream");
@@ -52,7 +53,7 @@ public:
         return *this;
     }
     template <typename T>
-    BytesStream& operator>>(std::vector<T>& data) {
+    BytesStream &operator>>(std::vector<T> &data) {
         size_t t_size = data.size() * sizeof(T);
         if (read_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Read overflow in BytesStream");
@@ -63,7 +64,7 @@ public:
     }
 
     /* String类型序列化 */
-    BytesStream& operator<<(const std::string& data) {
+    BytesStream &operator<<(const std::string &data) {
         size_t t_size = data.size();
         if (write_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Write overflow in BytesStream");
@@ -72,7 +73,7 @@ public:
         write_pos_ += t_size;
         return *this;
     }
-    BytesStream& operator>>(std::string& data) {
+    BytesStream &operator>>(std::string &data) {
         size_t t_size = data.size();
         if (read_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Read overflow in BytesStream");
@@ -83,7 +84,7 @@ public:
     }
 
     /* 自身序列化 */
-    BytesStream& operator<<(const BytesStream& data) {
+    BytesStream &operator<<(const BytesStream &data) {
         size_t t_size = data.Size();
         if (write_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Write overflow in BytesStream");
@@ -93,7 +94,7 @@ public:
         return *this;
     }
 
-    BytesStream& operator>>(BytesStream& data) {
+    BytesStream &operator>>(BytesStream &data) {
         size_t t_size = data.Size();
         if (write_pos_ + t_size > buffer_.size()) {
             throw std::runtime_error("Read overflow in BytesStream");
@@ -108,7 +109,7 @@ public:
         return write_pos_;
     }
     /* 获取Raw数据起始指针 */
-    const char* Data() const {
+    const char *Data() const {
         return buffer_.data();
     }
     /* 清空 */
@@ -126,11 +127,12 @@ public:
     }
 
     /* 提交操作 */
-    bool PostRead(const size_t& count) {
+    bool PostRead(const size_t &count) {
         return write_pos_ += count;
     }
-    bool PostWrite(const size_t& count) {
+    bool PostWrite(const size_t &count) {
         return write_pos_ += count;
     }
 };
 }  // namespace containers
+}  // namespace nebula

@@ -7,6 +7,9 @@
 #include <thread>
 #include <vector>
 
+namespace nebula {
+namespace threading {
+
 using CallBack = std::function<size_t(void)>;
 
 class ThreadPool {
@@ -77,3 +80,6 @@ private:
     std::condition_variable cv_;
     std::atomic<bool>       running_;
 };
+
+}  // namespace threading
+}  // namespace nebula

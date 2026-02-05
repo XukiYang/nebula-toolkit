@@ -1,5 +1,7 @@
 #pragma once
+namespace nebula {
 namespace net {
+namespace transport {
 
 enum EventFlags {
     kNone     = 0,  // 无事件标志
@@ -17,4 +19,6 @@ struct Event {
     EventFlags event_flags;
 };
 
+}  // namespace transport
 }  // namespace net
+}  // namespace nebula

@@ -4,6 +4,7 @@
 #include <vector>
 
 /* 基于C++11的线程安全的内存池 */
+namespace nebula {
 namespace memory {
 class BasicMemoryPool {
     struct Block {
@@ -58,3 +59,4 @@ public:
 };
 
 }  // namespace memory
+}  // namespace nebula
