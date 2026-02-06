@@ -30,12 +30,13 @@ public:
 public:
     /// @brief 基于实际缓冲区大小构造
     /// @param buffer_size
-    explicit CircularBuffer(size_t buffer_size) : buffer_(buffer_size){}
+    explicit CircularBuffer(size_t buffer_size) : buffer_(buffer_size) {}
 
     /// @brief 写数据到缓冲区
     /// @param write_data
     /// @return
-    template <typename T>size_t Write(const std::vector<T>& write_data) {
+    template <typename T>
+    size_t Write(const std::vector<T> &write_data) {
         std::lock_guard<std::mutex> lock(mutex_);
 
         if (write_data.empty()) return (size_t)Result::kErrorEmpty;
@@ -64,7 +65,7 @@ public:
     /// @param bytes_to_read
     /// @return
     template <typename T>
-    size_t Read(std::vector<T>& read_data, size_t bytes_to_read) {
+    size_t Read(std::vector<T> &read_data, size_t bytes_to_read) {
         std::lock_guard<std::mutex> lock(mutex_);
         // 过滤非空情况
         if (bytes_to_read == 0) return (size_t)Result::kErrorEmpty;
@@ -108,7 +109,7 @@ public:
     /// @param read_ptr
     /// @param bytes_to_read
     /// @return
-    size_t Read(uint8_t* read_ptr, size_t bytes_to_read) {
+    size_t Read(uint8_t *read_ptr, size_t bytes_to_read) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (bytes_to_read == 0) return (size_t)Result::kErrorEmpty;
         const size_t available = AvailableToRead();
@@ -133,15 +134,15 @@ public:
     /// @param read_ptr
     /// @param bytes_to_read
     /// @return
-    size_t Read(void* read_ptr, size_t bytes_to_read) {
-        return Read(reinterpret_cast<uint8_t*>(read_ptr), bytes_to_read);
+    size_t Read(void *read_ptr, size_t bytes_to_read) {
+        return Read(reinterpret_cast<uint8_t *>(read_ptr), bytes_to_read);
     }
 
     /// @brief 写入uint8_t *指定字节数据
     /// @param write_ptr
     /// @param bytes_to_write
     /// @return
-    size_t Write(const uint8_t* write_ptr, size_t bytes_to_write) {
+    size_t Write(const uint8_t *write_ptr, size_t bytes_to_write) {
         std::lock_guard<std::mutex> lock(mutex_);
 
         if (bytes_to_write == 0) {
@@ -169,14 +170,14 @@ public:
     /// @param write_ptr
     /// @param bytes_to_write
     /// @return
-    size_t Write(const void* write_ptr, size_t bytes_to_write) {
-        return Write(reinterpret_cast<const uint8_t*>(write_ptr), bytes_to_write);
+    size_t Write(const void *write_ptr, size_t bytes_to_write) {
+        return Write(reinterpret_cast<const uint8_t *>(write_ptr), bytes_to_write);
     }
 
     /// @brief 写入字符串数据
     /// @param data
     /// @return
-    size_t Write(const std::string& data) {
+    size_t Write(const std::string &data) {
         return Write(data.data(), data.size());
     }
 
@@ -184,10 +185,10 @@ public:
     /// @param data
     /// @param bytes_to_read
     /// @return
-    size_t Read(std::string& data, size_t bytes_to_read) {
+    size_t Read(std::string &data, size_t bytes_to_read) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (bytes_to_read == 0) return (size_t)Result::kErrorEmpty;
-        
+
         const size_t available = AvailableToRead();
         if (bytes_to_read > available) {
             return (size_t)Result::kErrorFull;  // 可读空间不足
@@ -205,7 +206,7 @@ public:
     /// @param read_data
     /// @param bytes_to_read
     /// @return
-    size_t ReadAutoResize(std::vector<uint8_t>& read_data, size_t bytes_to_read) {
+    size_t ReadAutoResize(std::vector<uint8_t> &read_data, size_t bytes_to_read) {
         read_data.resize(bytes_to_read);
         return Read(read_data, bytes_to_read);
     }
@@ -264,7 +265,7 @@ public:
 
     /// @brief 仅读数据，不出队
     /// @return 读取是否成功
-    size_t Peek(std::vector<uint8_t>& read_data, size_t bytes_to_read) {
+    size_t Peek(std::vector<uint8_t> &read_data, size_t bytes_to_read) {
         std::lock_guard<std::mutex> lock(mutex_);
 
         if (bytes_to_read == 0) return 0;
@@ -289,7 +290,7 @@ public:
 
     /// @brief 仅读数据到void*，不出队
     /// @return 读取是否成功
-    size_t Peek(void* read_ptr, size_t bytes_to_read) {
+    size_t Peek(void *read_ptr, size_t bytes_to_read) {
         std::lock_guard<std::mutex> lock(mutex_);
 
         if (bytes_to_read == 0) return 0;
@@ -299,7 +300,7 @@ public:
             return -1;  // 可读数据不足
         }
 
-        uint8_t* dest_ptr = reinterpret_cast<uint8_t*>(read_ptr);
+        uint8_t *    dest_ptr    = reinterpret_cast<uint8_t *>(read_ptr);
         const size_t first_chunk = std::min(bytes_to_read, buffer_.size() - read_index_);
 
         memcpy(dest_ptr, buffer_.data() + read_index_, first_chunk);
@@ -316,19 +317,19 @@ public:
 
     /// @brief 迭代器 begin
     /// @return
-    const uint8_t* begin() {
+    const uint8_t *begin() {
         return buffer_.data() + read_index_;
     }
 
     /// @brief 迭代器 end
     /// @return
-    const uint8_t* end() {
+    const uint8_t *end() {
         return buffer_.data() + write_index_;
     }
 
     /// @brief 返回指针
     /// @return
-    const uint8_t* data() {
+    const uint8_t *data() {
         return buffer_.data() + read_index_;
     }
 
@@ -375,7 +376,7 @@ public:
 
     /// @brief 获取线性可写空间
     /// @return 指针，可写字节数
-    std::pair<uint8_t*, size_t> GetLinearWriteSpace() {
+    std::pair<uint8_t *, size_t> GetLinearWriteSpace() {
         std::lock_guard<std::mutex> lock(mutex_);
         // 线性可写字节数:size()-write_index
         // 线性写入指针:data()+write_index_
@@ -399,7 +400,7 @@ public:
 
     /// @brief 获取线性可读空间
     /// @return
-    std::pair<const uint8_t*, size_t> GetLinearReadSpace() {
+    std::pair<const uint8_t *, size_t> GetLinearReadSpace() {
         std::lock_guard<std::mutex> lock(mutex_);
         // 线性可读字节数:size()-read_index
         // 线性读取指针:data()+read_index
