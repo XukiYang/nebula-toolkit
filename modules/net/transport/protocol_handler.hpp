@@ -9,6 +9,7 @@
 
 #include "../../containers/unpacker.hpp"
 #include "../../threading/timer_scheduler.hpp"
+#include "../../containers/lockfree_queue.hpp"
 #include "enums.hpp"
 
 namespace nebula {

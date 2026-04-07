@@ -127,6 +127,11 @@ public:
         return buffer_.end();
     }
 
+    /* 获取头指针 */
+    const char *Data() {
+        return buffer_.data();
+    }
+
     /* 提交操作 */
     bool PostRead(const size_t &count) {
         if (read_pos_ + count > write_pos_) {

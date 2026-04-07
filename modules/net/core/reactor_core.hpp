@@ -75,6 +75,23 @@ public:
             timer_shceduler_->Start();
         }
         while (running_) {
+            // 处理回传业务
+            auto event_responses = event_response_queue_->AvaToRead();
+            while (event_responses == 0) {
+                transport::event_response::Frame frame;
+                event_response_queue_->Peek(frame);
+
+                // 处理
+                if (frame.head.proto_type == transport::event_response::ProtoType::kUdp) {
+                    sendto(frame.head.fd, frame.body.data_bytes_stream.Data(), frame.body.data_bytes_stream.Size(), 0,
+                           reinterpret_cast<sockaddr *>(&frame.head.peer_addr), frame.head.peer_addr_len);
+                }
+
+                // 消费
+                event_response_queue_->Pop();
+                event_responses--;
+            }
+
             // 等待事件
             int nfds = epoll_wait(epoll_fd_, events, max_events_, -1);
             if (nfds == -1) {
@@ -240,6 +257,9 @@ private:
 
     // 定时线程池依赖
     std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
+
+    // 响应任务队列
+    std::shared_ptr<containers::LockFreeQueue<transport::event_response::Frame>> event_response_queue_;
 };
 
 }  // namespace core

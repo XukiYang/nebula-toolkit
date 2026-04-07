@@ -149,6 +149,10 @@ public:
         return PopBulk(&item, 1);
     }
 
+    Result Pop() {
+        return PopBulk(&item, 1);
+    };
+
     Result PopBulk(T *output, size_t count) {
         if (!output || count == 0) {
             return Result::kErrorInvalidSize;
