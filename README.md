@@ -111,6 +111,52 @@ Nebula-Toolkit 是一个轻量级、高性能的 C++ 工具库，提供了网络
 1. 克隆仓库
 2. 使用 CMake 或直接编译源文件
 
+## 工程结构约定
+
+- `modules/`：内部模块实现区（高内聚，便于按模块迁移复用）
+- `include/`：对外导出头文件区（稳定 API 入口）
+- `examples/`：示例程序
+- `tests/`：测试代码
+
+详细说明见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+
+## 接入方式
+
+### 方式一：直接 include（头文件导出层）
+
+保持使用 `include/<module>/*.hpp`，示例：
+
+```cpp
+#include "containers/circular_buffer.hpp"
+#include "threading/thread_pool.hpp"
+```
+
+### 方式二：CMake 子项目接入
+
+```cmake
+add_subdirectory(third_party/nebula-toolkit)
+target_link_libraries(your_target PRIVATE nebula::all)
+```
+
+也可以按模块链接：
+
+```cmake
+target_link_libraries(your_target PRIVATE nebula::containers nebula::threading)
+```
+
+### 方式三：安装后 find_package
+
+```cmake
+find_package(nebula-toolkit CONFIG REQUIRED)
+target_link_libraries(your_target PRIVATE nebula::all)
+```
+
+## 兼容性说明
+
+- 外部 `#include` 路径保持稳定：`include/<module>/*.hpp`
+- 对外 CMake target 保持稳定：`nebula::containers`、`nebula::logger`、`nebula::net`、`nebula::all`
+- `modules/` 属于内部实现路径，不承诺直接依赖兼容性
+
 ## 代码风格
 
 使用 Google C++ 代码规范
