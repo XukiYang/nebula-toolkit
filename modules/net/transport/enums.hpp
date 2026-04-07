@@ -1,10 +1,9 @@
 #pragma once
-#include <bits/socket.h>
+#include <sys/socket.h>
 
 #include <string>
 
-#include "../../modules/containers/bytes_stream.hpp"
-#include "../../modules/containers/lockfree_queue.hpp"
+#include "../../containers/bytes_stream.hpp"
 namespace nebula {
 namespace net {
 namespace transport {
@@ -33,11 +32,11 @@ enum class OptAction { kNone = -1, kSend, kClose };
 struct Head {
     ProtoType        proto_type = ProtoType::kNone;
     int              fd         = -1;
-    uint64_t         conn_id    = -1;
+    uint64_t         conn_id    = 0;
     sockaddr_storage peer_addr{};
     socklen_t        peer_addr_len{};
 
-    uint32_t  msg_type   = -1;                // 业务消息类型
+    uint32_t  msg_type   = 0;                 // 业务消息类型
     OptAction opt_action = OptAction::kNone;  // 操作选项
 };
 

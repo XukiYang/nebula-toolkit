@@ -150,7 +150,8 @@ public:
     }
 
     Result Pop() {
-        return PopBulk(&item, 1);
+        T temp;
+        return PopBulk(&temp, 1);
     };
 
     Result PopBulk(T *output, size_t count) {

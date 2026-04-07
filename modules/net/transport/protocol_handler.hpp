@@ -18,7 +18,7 @@ namespace transport {
 
 /// @brief 业务执行回调类型定义
 /// @param packs 解析后的数据包
-using ExecCb = std::function<void(const std::vector<std::vector<uint8_t>> &packs)>;
+using ExecCb = std::function<void(int fd, const std::vector<std::vector<uint8_t>> &packs)>;
 
 /// @brief 协议处理器基类
 /// 处理不同协议的事件，提供统一接口
@@ -109,11 +109,17 @@ private:
                 if (!packs_.empty() && cb_ && !should_close_) {
                     auto local_packs = std::move(packs_);
                     packs_.clear();
-                    auto timer_task = [cb = cb_, packs = std::move(local_packs)]() mutable {
-                        cb(packs);
+                    // 这里只做“把已解包结果交给业务层”，不直接在这里回包。
+                    // 业务层通常会生成Frame并投递给Reactor的响应队列。
+                    auto timer_task = [fd = fd_, cb = cb_, packs = std::move(local_packs)]() mutable {
+                        cb(fd, packs);
                         return 0;
                     };
-                    timer_shceduler_->ScheduleOnce(0, timer_task);
+                    if (timer_shceduler_) {
+                        timer_shceduler_->ScheduleOnce(0, timer_task);
+                    } else {
+                        timer_task();
+                    }
                 }
             } else if (n == 0) {  // 对端关闭连接
                 should_close_ = true;
@@ -174,11 +180,18 @@ public:
                 unpacker_->Get(packs_);
 
                 if (!packs_.empty() && cb_) {
-                    auto timer_task = [this]() {
-                        cb_(packs_);
+                    auto local_packs = std::move(packs_);
+                    packs_.clear();
+                    // UDP路径与TCP一致：回调只产出业务结果，不直接操作socket发送。
+                    auto timer_task = [fd = fd_, cb = cb_, packs = std::move(local_packs)]() mutable {
+                        cb(fd, packs);
                         return 0;
                     };
-                    timer_shceduler_->ScheduleOnce(0, timer_task);
+                    if (timer_shceduler_) {
+                        timer_shceduler_->ScheduleOnce(0, timer_task);
+                    } else {
+                        timer_task();
+                    }
                 }
             }
         }
