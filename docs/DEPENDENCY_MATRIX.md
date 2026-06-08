@@ -8,7 +8,7 @@
 - `nebula::memory`
 - `nebula::threading`
 - `nebula::logger`
-- `nebula::net`
+- `nebula::io`
 - `nebula::all`
 
 ## Target Dependencies
@@ -18,7 +18,7 @@
 - `nebula::memory` -> `nebula::headers`
 - `nebula::threading` -> `nebula::headers`
 - `nebula::logger` -> `nebula::containers`, `nebula::config`, `fmt::fmt`
-- `nebula::net` -> `nebula::containers`, `nebula::threading`, `nebula::logger`
+- `nebula::io` -> `nebula::containers`, `nebula::threading`, `nebula::logger`
 - `nebula::all` -> all module targets above
 
 ## Notes

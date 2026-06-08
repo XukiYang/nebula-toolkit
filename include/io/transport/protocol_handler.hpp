@@ -1,17 +1,20 @@
 #pragma once
+#include <arpa/inet.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <cerrno>
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include "containers/unpacker.hpp"
 #include "logger/logger.hpp"
-#include "net/transport/enums.hpp"
+#include "io/transport/enums.hpp"
 
 namespace nebula {
-namespace net {
+namespace io {
 namespace transport {
 
 /// @brief 业务执行回调类型定义
@@ -28,10 +31,36 @@ public:
     virtual bool ShouldClose() const {
         return false;
     }
+
+    /// @brief 是否是监听型 handler（收到 EPOLLIN 时调用 HandleNewConnection 而非 HandleEvent）
+    /// 默认返回 false，监听型 handler 应覆写为 true
+    virtual bool IsListener() const {
+        return false;
+    }
+
+    /// @brief 监听型 handler 处理新连接（非监听型 handler 无需覆写）
+    virtual void HandleNewConnection(const EventContext &ctx) {
+        (void)ctx;
+    }
+
+    /// @brief 原始数据写入（供 HandleResponseFrame 调用）
+    /// 默认实现直接调用 ::write()，需要线程安全的 handler（如 SpHandler）应覆写此方法。
+    /// @return 成功写入的字节数，失败返回 -1
+    virtual int WriteRaw(const void *data, size_t len) {
+        ssize_t written = ::write(Fd(), data, len);
+        if (written < 0) {
+            return -1;
+        }
+        return static_cast<int>(written);
+    }
+
+    /// @brief 获取 handler 关联的 fd（子类必须实现）
+    virtual int Fd() const = 0;
+
     virtual ~ProtocolHandler() = default;
 };
 
-/// @brief TCP协议处理器
+/// @brief TCP协议处理器 
 class TcpHandler : public ProtocolHandler {
 public:
     TcpHandler(int fd, std::unique_ptr<containers::UnPacker> unpacker)
@@ -42,6 +71,9 @@ public:
     }
     bool ShouldClose() const override {
         return should_close_;
+    }
+    int Fd() const override {
+        return fd_;
     }
 
     void HandleEvent(const EventContext &ctx) override {
@@ -133,6 +165,9 @@ public:
     void SetCallback(ExecCb cb) {
         cb_ = std::move(cb);
     }
+    int Fd() const override {
+        return fd_;
+    }
 
     void HandleEvent(const EventContext &ctx) override {
         if (ctx.event_flags & EventFlags::kError) {
@@ -193,6 +228,123 @@ private:
     std::vector<std::vector<uint8_t>>     packs_;
 };
 
+/// @brief TCP 监听型协议处理器
+/// 封装 TCP accept 逻辑，从 ReactorCore 中解耦出来。
+/// 收到 EPOLLIN 时通过 HandleNewConnection 接受新连接，
+/// 并为每个连接创建 TcpHandler，通过注册回调注册到 ReactorCore。
+///
+/// 设计说明：不直接持有 TcpWriteManager 指针，而是通过 RegisterCb 回调
+/// 将"注册新连接"的全部逻辑（包括 write_manager 注册 + ReactorCore 注册）
+/// 委托给 ReactorCore::ListenTcp() 设置的回调，避免循环依赖。
+class TcpListenerHandler : public ProtocolHandler {
+public:
+    /// @brief 注册回调类型：接受新连接 fd 和 handler，完成注册
+    using RegisterCb = std::function<void(int fd, std::unique_ptr<ProtocolHandler> handler)>;
+
+    /// @brief 构造 TCP 监听处理器
+    /// @param listen_fd    监听 socket fd
+    /// @param head_key     解包器头标识
+    /// @param tail_key     解包器尾标识
+    /// @param data_sz_cb   数据大小回调（可选）
+    /// @param check_sz_cb  校验回调（可选）
+    /// @param exec_cb      业务执行回调
+    /// @param buffer_size  解包器缓冲区大小
+    TcpListenerHandler(int listen_fd,
+                       containers::HeadKey head_key,
+                       containers::TailKey tail_key,
+                       containers::DataSzCb data_sz_cb,
+                       containers::CheckValidCb check_sz_cb,
+                       ExecCb exec_cb,
+                       size_t buffer_size)
+        : listen_fd_(listen_fd),
+          head_key_(std::move(head_key)),
+          tail_key_(std::move(tail_key)),
+          data_sz_cb_(std::move(data_sz_cb)),
+          check_sz_cb_(std::move(check_sz_cb)),
+          exec_cb_(std::move(exec_cb)),
+          buffer_size_(buffer_size) {}
+
+    /// @brief 标记为监听型 handler
+    bool IsListener() const override {
+        return true;
+    }
+
+    int Fd() const override {
+        return listen_fd_;
+    }
+
+    /// @brief 处理新 TCP 连接：accept4 循环 + 创建 TcpHandler
+    /// @param ctx 事件上下文（包含 reactor 的 epoll_fd 和 timer_scheduler）
+    void HandleNewConnection(const EventContext &ctx) override {
+        while (true) {
+            sockaddr_in client_addr{};
+            socklen_t   addr_len = sizeof(client_addr);
+
+            // accept4 循环：边缘触发模式下必须读到 EAGAIN
+            int conn_fd = accept4(listen_fd_, (sockaddr *)&client_addr, &addr_len, SOCK_NONBLOCK);
+
+            if (conn_fd < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) break;  // 所有连接已接受
+                perror("accept4");
+                continue;
+            }
+
+            char ip_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, sizeof(ip_str));
+            LOGP_MSG("Accepted connection [fd:%d] from %s:%d", conn_fd, ip_str, ntohs(client_addr.sin_port));
+
+            // 为新连接创建独立的解包器
+            std::unique_ptr<containers::UnPacker> unpacker;
+            if (data_sz_cb_ && check_sz_cb_) {
+                unpacker = containers::UnPacker::CreateWithCallbacks(
+                    head_key_, tail_key_, data_sz_cb_, check_sz_cb_, buffer_size_);
+            } else {
+                unpacker = containers::UnPacker::CreateHeadTail(head_key_, tail_key_, buffer_size_);
+            }
+
+            // 创建 TCP 数据处理器
+            auto handler = std::make_unique<TcpHandler>(conn_fd, std::move(unpacker));
+            if (exec_cb_) {
+                handler->SetCallback(exec_cb_);
+            }
+
+            // 通过注册回调将新连接注册到 ReactorCore（含 write_manager 注册）
+            if (register_cb_) {
+                register_cb_(conn_fd, std::move(handler));
+            } else {
+                // 未设置注册回调时关闭 fd，防止资源泄漏
+                close(conn_fd);
+            }
+        }
+    }
+
+    /// @brief 监听型 handler 不处理普通数据事件
+    void HandleEvent(const EventContext &ctx) override {
+        (void)ctx;
+    }
+
+    /// @brief 设置注册回调
+    /// @param cb 回调函数，由 ReactorCore::ListenTcp() 注入
+    void SetRegisterCb(RegisterCb cb) {
+        register_cb_ = std::move(cb);
+    }
+
+    ~TcpListenerHandler() override = default;
+
+private:
+    int listen_fd_;
+
+    // 解包器参数（每个新连接创建独立的 UnPacker）
+    containers::HeadKey      head_key_;
+    containers::TailKey      tail_key_;
+    containers::DataSzCb     data_sz_cb_;
+    containers::CheckValidCb check_sz_cb_;
+    ExecCb                   exec_cb_;
+    size_t                   buffer_size_;
+
+    RegisterCb register_cb_;  // handler 注册回调
+};
+
 }  // namespace transport
-}  // namespace net
+}  // namespace io
 }  // namespace nebula

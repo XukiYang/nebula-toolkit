@@ -4,8 +4,8 @@
 #include <fmt/ranges.h>
 
 #include "logger/crash_core_logger.hpp"
-#include "net/core/reactor_core.hpp"
-#include "net/transport/socket_creator.hpp"
+#include "io/core/reactor_core.hpp"
+#include "io/transport/socket_creator.hpp"
 #include "threading/timer_scheduler.hpp"
 
 std::atomic<bool> running{true};
@@ -16,18 +16,11 @@ int main() {
     nebula::logger::CrashCoreLogger::getInstance().EnableTimestampFilenames(true);
 
     using namespace nebula;
-    net::core::ReactorCore reactor;
+    io::core::ReactorCore reactor;
 
     // 定时线程池依赖注入
     auto timer_scheduler = std::make_shared<threading::TimerScheduler>();
     reactor.SetTimerScheduler(std::move(timer_scheduler));
-
-    // 创建TCP服务器套接字
-    int tcp_fd = net::transport::SocketCreator::CreateTcpSocket("0.0.0.0", 8080, true, SOMAXCONN);
-    if (tcp_fd < 0) {
-        std::cerr << "Failed to create TCP socket\n";
-        return 1;
-    }
 
     // 定义回调函数
     // ExecCb 签名: void(int fd, const std::vector<std::vector<uint8_t>>& packs)
@@ -53,8 +46,7 @@ int main() {
         }
     };
 
-    // 注册TCP监听套接字
-    reactor.RegisterProtocol(tcp_fd, nullptr, true);
+    // 先设置解包参数，再通过 ListenTcp 创建监听（内部会创建 TcpListenerHandler）
     reactor.SetConnHandlerParams({0xE, 0xD, 0xF},  // head_key
                                  {0xA, 0xE},       // tail_key
                                  nullptr,           // data_sz_cb
@@ -62,6 +54,12 @@ int main() {
                                  exec_cb,           // exec_cb
                                  1024 * 16          // buffer_size
     );
+
+    int tcp_fd = reactor.ListenTcp("0.0.0.0", 8080, SOMAXCONN);
+    if (tcp_fd < 0) {
+        std::cerr << "Failed to create TCP socket\n";
+        return 1;
+    }
     std::cout << "Server started. Listening on TCP:8080\n";
     std::cout << "Press Ctrl+C to exit...\n";
 

@@ -1,7 +1,5 @@
 #include "containers/lockfree_queue.hpp"
-#include "net/core/reactor_core.hpp"
-#include "net/transport/protocol_handler.hpp"
-#include "net/transport/socket_creator.hpp"
+#include "io/core/reactor_core.hpp"
 #include "threading/timer_scheduler.hpp"
 
 #include <arpa/inet.h>
@@ -20,11 +18,6 @@
 #include <vector>
 
 namespace {
-class NoopHandler : public nebula::net::transport::ProtocolHandler {
-public:
-    void HandleEvent(const nebula::net::transport::EventContext&) override {}
-};
-
 bool WaitRecv(int fd, std::string& out, int timeout_ms) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
     char       buffer[1024];
@@ -51,10 +44,10 @@ int main() {
     using nebula::containers::Result;
     using nebula::containers::TailKey;
     using nebula::containers::HeadKey;
-    using nebula::net::core::ReactorCore;
-    using nebula::net::transport::event_response::Frame;
-    using nebula::net::transport::event_response::OptAction;
-    using nebula::net::transport::event_response::ProtoType;
+    using nebula::io::core::ReactorCore;
+    using nebula::io::transport::event_response::Frame;
+    using nebula::io::transport::event_response::OptAction;
+    using nebula::io::transport::event_response::ProtoType;
 
     constexpr uint16_t kPort = 19091;
     auto               queue = std::make_shared<LockFreeQueue<std::shared_ptr<Frame>>>(1024);
@@ -91,9 +84,8 @@ int main() {
         },
         4096);
 
-    const int listen_fd = nebula::net::transport::SocketCreator::CreateTcpSocket("127.0.0.1", kPort, true, 16);
+    const int listen_fd = reactor.ListenTcp("127.0.0.1", kPort, 16);
     assert(listen_fd >= 0);
-    reactor.RegisterProtocol(listen_fd, std::make_unique<NoopHandler>(), true);
 
     std::thread server_thread([&reactor]() { reactor.Run(); });
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

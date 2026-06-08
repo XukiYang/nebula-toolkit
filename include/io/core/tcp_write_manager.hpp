@@ -12,7 +12,7 @@
 #include "logger/logger.hpp"
 
 namespace nebula {
-namespace net {
+namespace io {
 namespace core {
 
 /// @brief TCP 写缓冲管理器
@@ -26,10 +26,11 @@ public:
     }
 
     /// @brief 注册新连接，分配 conn_id 并初始化 epoll 事件掩码
-    /// @param fd  连接 fd
-    void RegisterFd(int fd) {
+    /// @param fd              连接 fd
+    /// @param edge_triggered  是否边缘触发（默认 true），影响后续 EPOLLOUT 动态开关的行为
+    void RegisterFd(int fd, bool edge_triggered = true) {
         conn_ids_[fd]       = ++next_conn_id_;
-        fd_event_masks_[fd] = EPOLLIN | EPOLLET;
+        fd_event_masks_[fd] = edge_triggered ? (EPOLLIN | EPOLLET) : EPOLLIN;
         LOGP_MSG("TcpWriteManager: registered fd:%d, conn_id:%lu", fd, conn_ids_[fd]);
     }
 
@@ -161,5 +162,5 @@ private:
 };
 
 }  // namespace core
-}  // namespace net
+}  // namespace io
 }  // namespace nebula

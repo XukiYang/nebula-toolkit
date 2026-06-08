@@ -67,10 +67,10 @@ add_library(nebula::logger ALIAS nebula_logger)
 set_target_properties(nebula_logger PROPERTIES EXPORT_NAME logger)
 target_link_libraries(nebula_logger INTERFACE nebula::containers nebula::config fmt::fmt)
 
-add_library(nebula_net INTERFACE)
-add_library(nebula::net ALIAS nebula_net)
-set_target_properties(nebula_net PROPERTIES EXPORT_NAME net)
-target_link_libraries(nebula_net INTERFACE nebula::containers nebula::threading nebula::logger)
+add_library(nebula_io INTERFACE)
+add_library(nebula::io ALIAS nebula_io)
+set_target_properties(nebula_io PROPERTIES EXPORT_NAME io)
+target_link_libraries(nebula_io INTERFACE nebula::containers nebula::threading nebula::logger)
 
 add_library(nebula_all INTERFACE)
 add_library(nebula::all ALIAS nebula_all)
@@ -81,7 +81,7 @@ target_link_libraries(nebula_all INTERFACE
     nebula::memory
     nebula::threading
     nebula::logger
-    nebula::net
+    nebula::io
 )
 
 # Keep compatibility with Linux toolchains that still require explicit atomic.
@@ -110,7 +110,7 @@ if(NEBULA_BUILD_EXAMPLES)
 endif()
 
 install(DIRECTORY include/ DESTINATION include)
-install(TARGETS nebula_headers nebula_containers nebula_config nebula_memory nebula_threading nebula_logger nebula_net nebula_all
+install(TARGETS nebula_headers nebula_containers nebula_config nebula_memory nebula_threading nebula_logger nebula_io nebula_all
         EXPORT nebulaTargets)
 install(EXPORT nebulaTargets NAMESPACE nebula:: DESTINATION lib/cmake/nebula-toolkit)
 

@@ -8,7 +8,7 @@
 #include "containers/bytes_stream.hpp"
 #include "threading/timer_scheduler.hpp"
 namespace nebula {
-namespace net {
+namespace io {
 namespace transport {
 
 enum EventFlags {
@@ -57,5 +57,5 @@ struct Frame {
 }  // namespace event_response
 
 }  // namespace transport
-}  // namespace net
+}  // namespace io
 }  // namespace nebula
