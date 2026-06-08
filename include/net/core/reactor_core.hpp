@@ -15,9 +15,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../logger/logger.hpp"
-#include "../transport/enums.hpp"
-#include "../transport/protocol_handler.hpp"
+#include "logger/logger.hpp"
+#include "net/transport/enums.hpp"
+#include "net/transport/protocol_handler.hpp"
 
 namespace nebula {
 namespace net {

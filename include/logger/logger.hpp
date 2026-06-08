@@ -20,8 +20,8 @@
 #include <type_traits>
 #include <vector>
 
-#include "../config_handler/ini_reader.hpp"
-#include "../containers/circular_buffer.hpp"
+#include "config_handler/ini_reader.hpp"
+#include "containers/circular_buffer.hpp"
 
 #ifdef min
 #undef min

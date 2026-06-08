@@ -21,13 +21,7 @@
 - `nebula::net` -> `nebula::containers`, `nebula::threading`, `nebula::logger`
 - `nebula::all` -> all module targets above
 
-## Module Migration Order
+## Notes
 
-1. containers (pilot)
-2. memory
-3. config_handler
-4. threading
-5. crypto
-6. serialport_handler
-7. logger
-8. net
+- All modules live under `include/<module>/` directly.
+- Include style: `#include "module/header.hpp"` (relative to `include/`).

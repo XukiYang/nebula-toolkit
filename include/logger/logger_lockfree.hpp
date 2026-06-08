@@ -17,8 +17,8 @@
 #include <thread>
 #include <vector>
 
-#include "../containers/lockfree_queue.hpp"
-#include "./config_handler/ini_reader.hpp"
+#include "containers/lockfree_queue.hpp"
+#include "config_handler/ini_reader.hpp"
 namespace nebula {
 namespace configs {
 struct LogGlobal {
