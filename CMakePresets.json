@@ -1,0 +1,57 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 14,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "default",
+            "displayName": "Default",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "NEBULA_BUILD_TESTS": "ON",
+                "NEBULA_BUILD_EXAMPLES": "ON"
+            }
+        },
+        {
+            "name": "release",
+            "displayName": "Release",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "NEBULA_BUILD_TESTS": "OFF",
+                "NEBULA_BUILD_EXAMPLES": "OFF"
+            }
+        },
+        {
+            "name": "notests",
+            "displayName": "No Tests",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-notests",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "NEBULA_BUILD_TESTS": "OFF",
+                "NEBULA_BUILD_EXAMPLES": "ON"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "default",
+            "configurePreset": "default"
+        },
+        {
+            "name": "release",
+            "configurePreset": "release"
+        },
+        {
+            "name": "notests",
+            "configurePreset": "notests"
+        }
+    ]
+}

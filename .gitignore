@@ -1,5 +1,6 @@
 .vscode
 build
+include/nebula/version.hpp
 build*/
 build-*/
 out/

@@ -17,6 +17,12 @@ if(NEBULA_ENABLE_DEBUG_SYMBOLS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Debug build: full debug symbols enabled")
 endif()
 
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/nebula/version.hpp.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/nebula/version.hpp
+    @ONLY
+)
+
 set(FMT_TEST OFF CACHE BOOL "" FORCE)
 set(FMT_DOC OFF CACHE BOOL "" FORCE)
 add_subdirectory(lib/fmt)
@@ -108,6 +114,7 @@ install(TARGETS nebula_headers nebula_containers nebula_config nebula_memory neb
         EXPORT nebulaTargets)
 install(EXPORT nebulaTargets NAMESPACE nebula:: DESTINATION lib/cmake/nebula-toolkit)
 
+include(CMakePackageConfigHelpers)
 configure_package_config_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nebula-toolkit-config.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/nebula-toolkit-config.cmake
@@ -126,4 +133,3 @@ install(
         ${CMAKE_CURRENT_BINARY_DIR}/nebula-toolkit-config-version.cmake
     DESTINATION lib/cmake/nebula-toolkit
 )
-include(CMakePackageConfigHelpers)
