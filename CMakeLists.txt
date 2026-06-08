@@ -104,7 +104,6 @@ if(NEBULA_BUILD_EXAMPLES)
 endif()
 
 install(DIRECTORY include/ DESTINATION include)
-install(DIRECTORY modules/ DESTINATION modules)
 install(TARGETS nebula_headers nebula_containers nebula_config nebula_memory nebula_threading nebula_logger nebula_net nebula_all
         EXPORT nebulaTargets)
 install(EXPORT nebulaTargets NAMESPACE nebula:: DESTINATION lib/cmake/nebula-toolkit)

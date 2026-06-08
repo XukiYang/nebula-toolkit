@@ -113,8 +113,8 @@ Nebula-Toolkit 是一个轻量级、高性能的 C++ 工具库，提供了网络
 
 ## 工程结构约定
 
-- `modules/`：内部模块实现区（高内聚，便于按模块迁移复用）
-- `include/`：对外导出头文件区（稳定 API 入口）
+- `include/`：头文件区（所有模块实现与对外 API）
+- `lib/`：第三方依赖（git 子模块）
 - `examples/`：示例程序
 - `tests/`：测试代码
 
@@ -155,7 +155,6 @@ target_link_libraries(your_target PRIVATE nebula::all)
 
 - 外部 `#include` 路径保持稳定：`include/<module>/*.hpp`
 - 对外 CMake target 保持稳定：`nebula::containers`、`nebula::logger`、`nebula::net`、`nebula::all`
-- `modules/` 属于内部实现路径，不承诺直接依赖兼容性
 
 ## 代码风格
 

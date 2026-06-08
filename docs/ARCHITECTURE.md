@@ -2,26 +2,18 @@
 
 ## Directory Roles
 
-- `modules/`: internal implementation modules (high cohesion, easy to move by module)
-- `include/`: exported public headers (stable external include surface)
+- `include/`: public headers (stable external include surface, all implementation lives here)
 - `tests/`: tests
 - `examples/`: runnable demos
+- `lib/`: third-party dependencies (git submodules)
 
 ## Rules
 
-1. New feature code should be added under `modules/<module>/...` first.
-2. Public API must be exposed through `include/...` headers.
-3. `include/` should stay stable to protect downstream projects.
+1. New feature code should be added under `include/<module>/...`.
+2. Public API is exposed through `include/...` headers directly.
+3. `include/` layout should stay stable to protect downstream projects.
 4. Low-level modules must not depend on high-level modules.
-
-## Migration Strategy
-
-1. Keep current `include/` layout compatible.
-2. Move module internals incrementally into `modules/`.
-3. After each module migration, keep a stable exported header path in `include/`.
 
 ## References
 
-- Migration guide: `docs/MIGRATION_GUIDE.md`
-- Module template: `docs/MODULE_TEMPLATE.md`
 - Dependency baseline: `docs/DEPENDENCY_MATRIX.md`
