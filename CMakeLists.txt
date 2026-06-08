@@ -19,7 +19,7 @@ endif()
 
 set(FMT_TEST OFF CACHE BOOL "" FORCE)
 set(FMT_DOC OFF CACHE BOOL "" FORCE)
-add_subdirectory(lib/fmt-10.2.1)
+add_subdirectory(lib/fmt)
 
 find_package(Threads REQUIRED)
 
