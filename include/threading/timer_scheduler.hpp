@@ -1,8 +1,15 @@
 #pragma once
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <queue>
+#include <thread>
 #include <unordered_set>
 
 #include "logger/logger.hpp"
-#include "thread_pool.hpp"
+#include "threading/thread_pool.hpp"
 
 namespace nebula {
 namespace threading {

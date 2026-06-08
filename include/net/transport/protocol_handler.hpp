@@ -1,16 +1,14 @@
 #pragma once
-#include <sys/epoll.h>
 #include <sys/socket.h>
-#include <sys/types.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <functional>
 #include <memory>
 
 #include "containers/unpacker.hpp"
-#include "containers/lockfree_queue.hpp"
-#include "threading/timer_scheduler.hpp"
-#include "enums.hpp"
+#include "logger/logger.hpp"
+#include "net/transport/enums.hpp"
 
 namespace nebula {
 namespace net {
@@ -26,8 +24,7 @@ using ExecCb = std::function<void(int fd, const std::vector<std::vector<uint8_t>
 /// 通过继承此类实现具体协议的处理逻辑
 class ProtocolHandler {
 public:
-    virtual void HandleEvent(int epoll_fd, const Event &event,
-                             std::shared_ptr<threading::TimerScheduler> timer_shceduler) = 0;
+    virtual void HandleEvent(const EventContext &ctx) = 0;
     virtual bool ShouldClose() const {
         return false;
     }
@@ -47,30 +44,27 @@ public:
         return should_close_ || is_closed_;
     }
 
-    void HandleEvent(int epoll_fd, const Event &event,
-                     std::shared_ptr<threading::TimerScheduler> timer_shceduler) override {
-        timer_shceduler_ = std::move(timer_shceduler);
-
-        if (event.fd != fd_) return;
+    void HandleEvent(const EventContext &ctx) override {
+        if (ctx.fd != fd_) return;
 
         // 处理错误事件
-        if (event.event_flags & EventFlags::kError) {
+        if (ctx.event_flags & EventFlags::kError) {
             LOGP_MSG("Connection error on fd:%d", fd_);
             should_close_ = true;
             return;
         }
 
         // 处理连接挂起
-        if (event.event_flags & EventFlags::kHangUp) {
+        if (ctx.event_flags & EventFlags::kHangUp) {
             LOGP_MSG("Connection closed by peer on fd:%d", fd_);
             should_close_ = true;
             return;
         }
 
         // 处理可读事件（边缘触发模式）
-        if (event.event_flags & EventFlags::kReadable) {
+        if (ctx.event_flags & EventFlags::kReadable) {
             if (!should_close_) {
-                ProcessReadableEvent();
+                ProcessReadableEvent(ctx);
             }
         }
     }
@@ -80,15 +74,14 @@ public:
     }
 
 private:
-    const int                                  fd_;
-    bool                                       should_close_;
-    bool                                       is_closed_;
-    ExecCb                                     cb_;
-    std::unique_ptr<containers::UnPacker>      unpacker_;
-    std::vector<std::vector<uint8_t>>          packs_;
-    std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
+    const int                             fd_;
+    bool                                  should_close_;
+    bool                                  is_closed_;
+    ExecCb                                cb_;
+    std::unique_ptr<containers::UnPacker> unpacker_;
+    std::vector<std::vector<uint8_t>>     packs_;
 
-    void ProcessReadableEvent() {
+    void ProcessReadableEvent(const EventContext &ctx) {
         while (true) {
             auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
             if (capacity == 0) {
@@ -115,8 +108,8 @@ private:
                         cb(fd, packs);
                         return 0;
                     };
-                    if (timer_shceduler_) {
-                        timer_shceduler_->ScheduleOnce(0, timer_task);
+                    if (ctx.timer_scheduler) {
+                        ctx.timer_scheduler->ScheduleOnce(0, timer_task);
                     } else {
                         timer_task();
                     }
@@ -144,15 +137,12 @@ public:
         cb_ = std::move(cb);
     }
 
-    void HandleEvent(int epoll_fd, const Event &event,
-                     std::shared_ptr<threading::TimerScheduler> timer_shceduler) override {
-        timer_shceduler_ = std::move(timer_shceduler);
-
-        if (event.event_flags & EventFlags::kError) {
+    void HandleEvent(const EventContext &ctx) override {
+        if (ctx.event_flags & EventFlags::kError) {
             should_close_ = true;
             return;
         }
-        if (event.event_flags & EventFlags::kReadable) {
+        if (ctx.event_flags & EventFlags::kReadable) {
             while (true) {
                 auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
                 if (capacity == 0) {
@@ -165,15 +155,13 @@ public:
                 ssize_t len = recvfrom(fd_, buffer, capacity, 0, reinterpret_cast<sockaddr *>(&addr), &addr_len);
 
                 if (len == -1) {
-                    // 读取完毕
                     if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        break;
+                        break;  // 读取完毕
                     }
                     // 发生错误
-                    else {
-                        LOGP_ERROR("udp error ECONNREFUSED on fd:%d,errno:%d", fd_, errno);
-                        should_close_ = true;
-                    }
+                    LOGP_ERROR("udp error on fd:%d,errno:%d", fd_, errno);
+                    should_close_ = true;
+                    break;  // 必须 break，否则 len==-1 会落入 CommitWriteSize 导致越界
                 }
 
                 unpacker_->CommitWriteSize(len);
@@ -187,8 +175,8 @@ public:
                         cb(fd, packs);
                         return 0;
                     };
-                    if (timer_shceduler_) {
-                        timer_shceduler_->ScheduleOnce(0, timer_task);
+                    if (ctx.timer_scheduler) {
+                        ctx.timer_scheduler->ScheduleOnce(0, timer_task);
                     } else {
                         timer_task();
                     }
@@ -201,12 +189,11 @@ public:
     }
 
 private:
-    const int                                  fd_;
-    bool                                       should_close_;
-    ExecCb                                     cb_;
-    std::unique_ptr<containers::UnPacker>      unpacker_;
-    std::vector<std::vector<uint8_t>>          packs_;
-    std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
+    const int                             fd_;
+    bool                                  should_close_;
+    ExecCb                                cb_;
+    std::unique_ptr<containers::UnPacker> unpacker_;
+    std::vector<std::vector<uint8_t>>     packs_;
 };
 
 }  // namespace transport

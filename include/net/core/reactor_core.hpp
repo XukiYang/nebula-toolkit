@@ -4,10 +4,10 @@
 #include <netinet/in.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include <atomic>
+#include <cerrno>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
@@ -15,7 +15,9 @@
 #include <unordered_set>
 #include <vector>
 
+#include "containers/lockfree_queue.hpp"
 #include "logger/logger.hpp"
+#include "net/core/tcp_write_manager.hpp"
 #include "net/transport/enums.hpp"
 #include "net/transport/protocol_handler.hpp"
 
@@ -33,8 +35,9 @@ public:
     ~ReactorCore() {
         if (epoll_fd_ >= 0) close(epoll_fd_);
 
-        // 清理所有处理器
+        // 清理所有处理器及其写缓冲状态
         for (auto &handler : protocol_handlers_) {
+            tcp_write_manager_.UnregisterFd(handler.first);
             close(handler.first);
         }
     }
@@ -59,7 +62,6 @@ public:
 
         // 存储处理器
         protocol_handlers_[fd] = std::move(handler);
-        fd_event_masks_[fd]    = ev.events;
 
         // 标记监听套接字
         if (is_listener) {
@@ -98,22 +100,26 @@ public:
                 int      fd      = events[static_cast<size_t>(i)].data.fd;
                 uint32_t revents = events[static_cast<size_t>(i)].events;
 
-                // 构造事件对象
-                transport::Event ev;
-                ev.fd          = fd;
-                ev.event_flags = static_cast<transport::EventFlags>(0);  // 初始化为无事件
+                // 构造事件上下文，聚合 IO 事件所需的全部信息
+                transport::EventContext ctx;
+                ctx.epoll_fd        = epoll_fd_;
+                ctx.fd              = fd;
+                ctx.conn_id         = tcp_write_manager_.GetConnId(fd);
+                ctx.timer_scheduler = timer_shceduler_;
+                ctx.event_flags     = static_cast<transport::EventFlags>(0);
 
                 if (revents & EPOLLIN)
-                    ev.event_flags =
-                        static_cast<transport::EventFlags>(ev.event_flags | transport::EventFlags::kReadable);
+                    ctx.event_flags =
+                        static_cast<transport::EventFlags>(ctx.event_flags | transport::EventFlags::kReadable);
                 if (revents & EPOLLOUT)
-                    ev.event_flags =
-                        static_cast<transport::EventFlags>(ev.event_flags | transport::EventFlags::kWritable);
+                    ctx.event_flags =
+                        static_cast<transport::EventFlags>(ctx.event_flags | transport::EventFlags::kWritable);
                 if (revents & EPOLLERR)
-                    ev.event_flags = static_cast<transport::EventFlags>(ev.event_flags | transport::EventFlags::kError);
+                    ctx.event_flags =
+                        static_cast<transport::EventFlags>(ctx.event_flags | transport::EventFlags::kError);
                 if (revents & EPOLLHUP)
-                    ev.event_flags =
-                        static_cast<transport::EventFlags>(ev.event_flags | transport::EventFlags::kHangUp);
+                    ctx.event_flags =
+                        static_cast<transport::EventFlags>(ctx.event_flags | transport::EventFlags::kHangUp);
 
                 // 如果是监听套接字（TCP）
                 if (listeners_.find(fd) != listeners_.end()) {
@@ -121,16 +127,16 @@ public:
                     continue;
                 }
 
-                // TCP发送采用“缓冲区 + EPOLLOUT驱动”，避免一次send发不完导致丢数据。
+                // TCP 发送采用”缓冲区 + EPOLLOUT 驱动”，避免一次 send 发不完导致丢数据。
                 if (revents & EPOLLOUT) {
-                    FlushTcpPendingWrites(fd);
+                    tcp_write_manager_.Flush(fd);
                 }
 
                 // 查找处理器
                 auto it = protocol_handlers_.find(fd);
                 if (it != protocol_handlers_.end()) {
                     try {
-                        it->second->HandleEvent(epoll_fd_, ev, timer_shceduler_);
+                        it->second->HandleEvent(ctx);
                     } catch (const std::exception &e) {
                         LOGP_MSG("Error handling fd:%d - %s", fd, e.what());
                         UnregisterFd(fd);
@@ -183,11 +189,6 @@ public:
     }
 
 private:
-    struct TcpWriteState {
-        uint64_t             conn_id = 0;
-        std::vector<uint8_t> buffer;
-        size_t               sent_offset = 0;
-    };
 
     void ConsumeEventResponses() {
         if (!event_response_queue_) {
@@ -206,6 +207,7 @@ private:
         const auto proto = frame.head.proto_type;
         const auto act   = frame.head.opt_action;
 
+        // UDP 直接发送，无需写缓冲
         if (proto == transport::event_response::ProtoType::kUdp) {
             if (act == transport::event_response::OptAction::kSend) {
                 sendto(frame.head.fd, frame.body.data_bytes_stream.Data(), frame.body.data_bytes_stream.Size(), 0,
@@ -216,102 +218,28 @@ private:
             return;
         }
 
-        if (proto != transport::event_response::ProtoType::kTcp) {
-            return;
-        }
-
-        if (act == transport::event_response::OptAction::kClose) {
+        // TCP 关闭动作
+        if (proto == transport::event_response::ProtoType::kTcp &&
+            act == transport::event_response::OptAction::kClose) {
             UnregisterFd(frame.head.fd);
             return;
         }
-        if (act != transport::event_response::OptAction::kSend) {
-            return;
-        }
 
-        auto fd_it = protocol_handlers_.find(frame.head.fd);
-        if (fd_it == protocol_handlers_.end()) {
-            return;
-        }
-
-        auto id_it = conn_ids_.find(frame.head.fd);
-        // 防止fd复用导致误发：回包携带了旧conn_id时直接丢弃。
-        if (id_it != conn_ids_.end() && frame.head.conn_id != 0 && frame.head.conn_id != id_it->second) {
-            return;
-        }
-
-        auto &state = tcp_write_states_[frame.head.fd];
-        if (state.conn_id == 0) {
-            state.conn_id = (id_it == conn_ids_.end()) ? frame.head.conn_id : id_it->second;
-        }
-
-        const auto *data = reinterpret_cast<const uint8_t *>(frame.body.data_bytes_stream.Data());
-        const auto  size = frame.body.data_bytes_stream.Size();
-        if (size > 0) {
-            state.buffer.insert(state.buffer.end(), data, data + size);
-        }
-        FlushTcpPendingWrites(frame.head.fd);
-    }
-
-    void FlushTcpPendingWrites(int fd) {
-        auto it = tcp_write_states_.find(fd);
-        if (it == tcp_write_states_.end()) {
-            return;
-        }
-
-        auto &state = it->second;
-        while (state.sent_offset < state.buffer.size()) {
-            const uint8_t *base = state.buffer.data() + state.sent_offset;
-            const size_t   left = state.buffer.size() - state.sent_offset;
-            const ssize_t n     = send(fd, base, left, MSG_NOSIGNAL);
-
-            if (n > 0) {
-                state.sent_offset += static_cast<size_t>(n);
-                continue;
-            }
-            if (n < 0 && errno == EINTR) {
-                continue;
-            }
-            if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-                // 当前不可写，打开EPOLLOUT，等待下次可写继续冲刷。
-                UpdateWriteEvent(fd, true);
+        // TCP 发送：委托写缓冲管理器处理
+        if (proto == transport::event_response::ProtoType::kTcp &&
+            act == transport::event_response::OptAction::kSend) {
+            if (protocol_handlers_.find(frame.head.fd) == protocol_handlers_.end()) {
                 return;
             }
 
-            UnregisterFd(fd);
-            return;
+            // 防止 fd 复用导致误发：回包携带了旧 conn_id 时直接丢弃
+            if (tcp_write_manager_.IsStaleConn(frame.head.fd, frame.head.conn_id)) {
+                return;
+            }
+
+            tcp_write_manager_.EnqueueWrite(frame.head.fd, frame.body.data_bytes_stream.Data(),
+                                            frame.body.data_bytes_stream.Size());
         }
-
-        tcp_write_states_.erase(it);
-        // 全部发送完成后关闭EPOLLOUT，避免空转。
-        UpdateWriteEvent(fd, false);
-    }
-
-    void UpdateWriteEvent(int fd, bool enable) {
-        auto it = fd_event_masks_.find(fd);
-        if (it == fd_event_masks_.end()) {
-            return;
-        }
-
-        uint32_t new_mask = it->second;
-        if (enable) {
-            new_mask |= EPOLLOUT;
-        } else {
-            new_mask &= ~EPOLLOUT;
-        }
-
-        if (new_mask == it->second) {
-            return;
-        }
-
-        epoll_event ev{};
-        ev.events  = new_mask;
-        ev.data.fd = fd;
-
-        if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev) == -1) {
-            perror("epoll_ctl mod");
-            return;
-        }
-        it->second = new_mask;
     }
 
     void UnregisterFd(int fd) {
@@ -321,9 +249,7 @@ private:
 
         protocol_handlers_.erase(fd);
         listeners_.erase(fd);
-        fd_event_masks_.erase(fd);
-        tcp_write_states_.erase(fd);
-        conn_ids_.erase(fd);
+        tcp_write_manager_.UnregisterFd(fd);
         close(fd);
         LOGP_MSG("Unregistered fd:%d", fd);
     }
@@ -346,7 +272,7 @@ private:
             char ip_str[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, sizeof(ip_str));
             LOGP_MSG("Accepted connection [fd:%d] from %s:%d", conn_fd, ip_str, ntohs(client_addr.sin_port));
-            conn_ids_[conn_fd] = ++next_conn_id_;
+            tcp_write_manager_.RegisterFd(conn_fd, epoll_fd_);
 
             // 为连接创建处理程序
             CreateConnHandler(conn_fd);
@@ -392,13 +318,12 @@ private:
     // 处理器业务执行回调
     transport::ExecCb exec_cb_ = nullptr;
 
-    // 协议处理器映射与TCP监听套接字
+    // 协议处理器映射与监听套接字集合
     std::unordered_map<int, std::unique_ptr<transport::ProtocolHandler>> protocol_handlers_;
     std::unordered_set<int>                                              listeners_;
-    std::unordered_map<int, uint32_t>                                    fd_event_masks_;
-    std::unordered_map<int, TcpWriteState>                               tcp_write_states_;
-    std::unordered_map<int, uint64_t>                                    conn_ids_;
-    std::atomic<uint64_t>                                                next_conn_id_{0};
+
+    // TCP 写缓冲管理（拆分自 ReactorCore，职责单一化）
+    TcpWriteManager tcp_write_manager_;
 
     // 定时线程池依赖
     std::shared_ptr<threading::TimerScheduler> timer_shceduler_;

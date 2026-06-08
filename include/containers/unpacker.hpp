@@ -7,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-#include "circular_buffer.hpp"
+#include "containers/circular_buffer.hpp"
 
 #ifndef LOGP_DEBUG
 #define LOGP_DEBUG(...)
