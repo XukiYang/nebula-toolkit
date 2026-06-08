@@ -75,29 +75,37 @@ Nebula-Toolkit 是一个轻量级、高性能的 C++ 工具库，提供了网络
   - 提供简洁的接口读取 INI 文件中的配置项
   - **C++ 版本要求**: C++11
 
-### 网络库 (`nebula::net`)
+### IO 库 (`nebula::io`)
 
 - **ReactorCore**
-  - 基于 epoll 的事件反应器核心
-  - 支持 TCP 连接的管理和事件处理
-  - 提供非阻塞 IO 和边缘触发模式
+  - 基于 epoll 的协议无关事件反应器核心
+  - 统一支持 TCP/UDP/串口等多种协议的 I/O 事件分发
+  - 提供非阻塞 IO、边缘触发与水平触发模式
   - **C++ 版本要求**: C++14
   - **备注**: 使用了 `std::make_unique` 等 C++14 特性
 
 - **ProtocolHandler**
   - 协议处理器基类
-  - 提供 TCP、UDP 等协议的处理接口
-  - 支持事件驱动的网络编程模型
-  - **C++ 版本要求**: C++14
-  - **备注**: 使用了 `std::make_unique` 等 C++14 特性
+  - 提供 TCP、UDP、串口等协议的处理接口
+  - 支持事件驱动的 I/O 编程模型
 
-### 串口处理库 (`nebula::serialport_handler`)
+- **TcpListenerHandler**
+  - TCP 监听型协议处理器
+  - 封装 TCP accept 逻辑，从 ReactorCore 解耦
+
+- **SpHandler**
+  - 串口事件驱动协议处理器
+  - 通过 epoll 监听串口 fd，配合 UnPacker 解帧
+  - 适用于 Reactor 事件驱动场景
+
+- **SocketCreator**
+  - 套接字/串口设备创建工厂
+  - 支持 TCP、UDP 套接字和串口 fd 的创建与配置
 
 - **SerialClient**
-  - 串口客户端实现
+  - 阻塞式串口客户端
   - 支持串口的打开、关闭、读写操作
-  - 适用于串口通信场景
-  - **C++ 版本要求**: C++11
+  - 适用于不需要 Reactor 的简单串口通信场景
 
 ## 构建与安装
 
@@ -118,7 +126,7 @@ Nebula-Toolkit 是一个轻量级、高性能的 C++ 工具库，提供了网络
 - `examples/`：示例程序
 - `tests/`：测试代码
 
-详细说明见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+详细说明见项目根目录下的 `CLAUDE.md`。
 
 ## 接入方式
 
@@ -154,7 +162,7 @@ target_link_libraries(your_target PRIVATE nebula::all)
 ## 兼容性说明
 
 - 外部 `#include` 路径保持稳定：`include/<module>/*.hpp`
-- 对外 CMake target 保持稳定：`nebula::containers`、`nebula::logger`、`nebula::net`、`nebula::all`
+- 对外 CMake target 保持稳定：`nebula::containers`、`nebula::logger`、`nebula::io`、`nebula::all`
 
 ## 代码风格
 
