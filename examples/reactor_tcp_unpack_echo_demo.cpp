@@ -1,8 +1,8 @@
-#include "../include/containers/lockfree_queue.hpp"
-#include "../include/net/core/reactor_core.hpp"
-#include "../include/net/transport/protocol_handler.hpp"
-#include "../include/net/transport/socket_creator.hpp"
-#include "../include/threading/timer_scheduler.hpp"
+#include "containers/lockfree_queue.hpp"
+#include "net/core/reactor_core.hpp"
+#include "net/transport/protocol_handler.hpp"
+#include "net/transport/socket_creator.hpp"
+#include "threading/timer_scheduler.hpp"
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -22,8 +22,7 @@
 namespace {
 class NoopHandler : public nebula::net::transport::ProtocolHandler {
 public:
-    void HandleEvent(int, const nebula::net::transport::Event&,
-                     std::shared_ptr<nebula::threading::TimerScheduler>) override {}
+    void HandleEvent(const nebula::net::transport::EventContext&) override {}
 };
 
 bool WaitRecv(int fd, std::string& out, int timeout_ms) {

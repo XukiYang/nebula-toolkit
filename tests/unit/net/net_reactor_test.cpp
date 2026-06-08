@@ -1,6 +1,8 @@
 #include <csignal>
 #include <iostream>
 
+#include <fmt/ranges.h>
+
 #include "logger/crash_core_logger.hpp"
 #include "net/core/reactor_core.hpp"
 #include "net/transport/socket_creator.hpp"
