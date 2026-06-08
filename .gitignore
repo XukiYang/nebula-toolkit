@@ -1,27 +1,42 @@
-.vscode/
-build
-include/nebula/version.hpp
+# Build output
 build*/
 build-*/
 out/
 dist/
 install/
+cmake-build-debug/
+cmake-build-release/
+
+# Generated sources
+include/nebula/version.hpp
+
+# Object / library files
 *.o
 *.a
-cmake-build-debug/
-.idea/
+*.d
+
+# Specific binaries
 net_benchmark_test
 
-# CMake / Ninja
+# IDE
+.vscode/
+.idea/
+.vs/
+*.swp
+*.swo
+*~
+
+# CMake / Ninja (in-source build artifacts)
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 CTestTestfile.cmake
 compile_commands.json
 Testing/
+.ninja_deps
+.ninja_log
 
 # Visual Studio
-.vs/
 *.sln
 *.vcxproj*
 *.filters
@@ -31,3 +46,16 @@ Testing/
 *.obj
 *.idb
 *.tlog
+
+# OS
+.DS_Store
+
+# clangd
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+
+# ai
+CLAUDE.md
