@@ -35,13 +35,13 @@ public:
 class TcpHandler : public ProtocolHandler {
 public:
     TcpHandler(int fd, std::unique_ptr<containers::UnPacker> unpacker)
-        : fd_(fd), unpacker_(std::move(unpacker)), should_close_(false), is_closed_(false) {}
+        : fd_(fd), unpacker_(std::move(unpacker)), should_close_(false) {}
 
     void SetCallback(ExecCb cb) {
         cb_ = std::move(cb);
     }
     bool ShouldClose() const override {
-        return should_close_ || is_closed_;
+        return should_close_;
     }
 
     void HandleEvent(const EventContext &ctx) override {
@@ -69,14 +69,11 @@ public:
         }
     }
 
-    ~TcpHandler() override {
-        is_closed_ = true;  // 在析构时设置标志
-    }
+    ~TcpHandler() override = default;
 
 private:
     const int                             fd_;
     bool                                  should_close_;
-    bool                                  is_closed_;
     ExecCb                                cb_;
     std::unique_ptr<containers::UnPacker> unpacker_;
     std::vector<std::vector<uint8_t>>     packs_;
@@ -85,7 +82,7 @@ private:
         while (true) {
             auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
             if (capacity == 0) {
-                LOGP_MSG("Buffer full on fd:%d,wirte space:%d,read space:%d", fd_, unpacker_->AvailableToWrite(),
+                LOGP_MSG("Buffer full on fd:%d,write space:%d,read space:%d", fd_, unpacker_->AvailableToWrite(),
                          unpacker_->AvailableToRead());
                 break;
             }
@@ -146,7 +143,7 @@ public:
             while (true) {
                 auto [buffer, capacity] = unpacker_->GetLinearWriteSpace();
                 if (capacity == 0) {
-                    LOGP_MSG("Buffer full on fd:%d,wirte space:%d,read space:%d", fd_, unpacker_->AvailableToWrite(),
+                    LOGP_MSG("Buffer full on fd:%d,write space:%d,read space:%d", fd_, unpacker_->AvailableToWrite(),
                              unpacker_->AvailableToRead());
                     break;
                 }

@@ -19,8 +19,6 @@ enum EventFlags {
     kHangUp   = 8   // 连接挂起
 };
 
-enum TriggerMode { kEt, kLt };
-
 /// @brief 事件上下文，聚合了 IO 事件所需的全部信息
 /// 将 epoll_fd、fd、事件标志、连接 ID、定时器统一传递给协议处理器，
 /// 避免 HandleEvent 参数散落，handler 需要什么直接从 ctx 取。
@@ -34,7 +32,7 @@ struct EventContext {
 
 namespace event_response {
 
-enum class ProtoType { kNone = -1, kTcp, kUdp, kSp };
+enum class ProtoType { kNone = -1, kTcp, kUdp, kSp /* 串口协议，预留 */ };
 enum class OptAction { kNone = -1, kSend, kClose };
 
 struct Head {

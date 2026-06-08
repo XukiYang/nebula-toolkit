@@ -20,11 +20,14 @@ namespace core {
 /// 从 ReactorCore 中拆分出来，使 ReactorCore 只关注事件循环与 fd 生命周期。
 class TcpWriteManager {
 public:
+    /// @brief 初始化 epoll 实例 fd（应在注册任何连接前调用一次）
+    void Init(int epoll_fd) {
+        epoll_fd_ = epoll_fd;
+    }
+
     /// @brief 注册新连接，分配 conn_id 并初始化 epoll 事件掩码
-    /// @param fd        连接 fd
-    /// @param epoll_fd  epoll 实例 fd
-    void RegisterFd(int fd, int epoll_fd) {
-        epoll_fd_           = epoll_fd;
+    /// @param fd  连接 fd
+    void RegisterFd(int fd) {
         conn_ids_[fd]       = ++next_conn_id_;
         fd_event_masks_[fd] = EPOLLIN | EPOLLET;
         LOGP_MSG("TcpWriteManager: registered fd:%d, conn_id:%lu", fd, conn_ids_[fd]);

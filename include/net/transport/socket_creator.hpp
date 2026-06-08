@@ -13,13 +13,15 @@ namespace transport {
 
 class SocketCreator {
 public:
+    SocketCreator() = delete;
+
     /// @brief 创建TCP套接字
-    /// @param ip
-    /// @param port
-    /// @param non_block
-    /// @param listen_backlog
-    /// @return
-    static int CreateTcpSocket(std::string ip, uint16_t port, bool non_block = true, int listen_backlog = 0) {
+    /// @param ip        绑定IP，空字符串表示 INADDR_ANY
+    /// @param port      绑定端口
+    /// @param non_block 是否非阻塞
+    /// @param listen_backlog  listen 队列长度，0 表示不调用 listen
+    /// @return 成功返回 fd，失败返回 -1
+    static int CreateTcpSocket(const std::string& ip, uint16_t port, bool non_block = true, int listen_backlog = 0) {
         int flags = SOCK_STREAM;
         if (non_block) flags |= SOCK_NONBLOCK;
 
@@ -27,7 +29,10 @@ public:
         if (fd == -1) return -1;
 
         int opt = 1;
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+            close(fd);
+            return -1;
+        }
 
         sockaddr_in addr{};
         addr.sin_family      = AF_INET;
@@ -48,11 +53,11 @@ public:
     }
 
     /// @brief 创建UDP套接字
-    /// @param ip
-    /// @param port
-    /// @param non_block
-    /// @return
-    static int CreateUdpSocket(std::string ip, uint16_t port, bool non_block = true) {
+    /// @param ip        绑定IP，空字符串表示 INADDR_ANY
+    /// @param port      绑定端口
+    /// @param non_block 是否非阻塞
+    /// @return 成功返回 fd，失败返回 -1
+    static int CreateUdpSocket(const std::string& ip, uint16_t port, bool non_block = true) {
         int flags = SOCK_DGRAM;
         if (non_block) flags |= SOCK_NONBLOCK;
 
@@ -60,7 +65,10 @@ public:
         if (fd == -1) return -1;
 
         int opt = 1;
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+            close(fd);
+            return -1;
+        }
 
         sockaddr_in addr{};
         addr.sin_family      = AF_INET;

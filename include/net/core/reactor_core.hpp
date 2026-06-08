@@ -29,6 +29,7 @@ public:
     ReactorCore(uint64_t max_events = 64) : max_events_(max_events) {
         epoll_fd_ = epoll_create1(0);
         if (epoll_fd_ == -1) throw std::runtime_error("epoll_create failed");
+        tcp_write_manager_.Init(epoll_fd_);
         LOGP_MSG("ReactorCore initialized with max_events: %lu", max_events);
     }
 
@@ -75,8 +76,8 @@ public:
     /// @brief 事件循环机制
     void Run() {
         std::vector<epoll_event> events(max_events_);
-        if (timer_shceduler_) {
-            timer_shceduler_->Start();
+        if (timer_scheduler_) {
+            timer_scheduler_->Start();
         }
         while (running_) {
             // 先消费业务线程产出的响应任务，再进入epoll等待。
@@ -105,7 +106,7 @@ public:
                 ctx.epoll_fd        = epoll_fd_;
                 ctx.fd              = fd;
                 ctx.conn_id         = tcp_write_manager_.GetConnId(fd);
-                ctx.timer_scheduler = timer_shceduler_;
+                ctx.timer_scheduler = timer_scheduler_;
                 ctx.event_flags     = static_cast<transport::EventFlags>(0);
 
                 if (revents & EPOLLIN)
@@ -175,9 +176,9 @@ public:
     }
 
     /// @brief 注入定时线程池依赖
-    /// @param timer_shceduler
-    void SetTimerScheduler(std::shared_ptr<threading::TimerScheduler> timer_shceduler) {
-        timer_shceduler_ = std::move(timer_shceduler);
+    /// @param timer_scheduler
+    void SetTimerScheduler(std::shared_ptr<threading::TimerScheduler> timer_scheduler) {
+        timer_scheduler_ = std::move(timer_scheduler);
     };
 
     /// @brief 设置业务回传队列
@@ -210,8 +211,12 @@ private:
         // UDP 直接发送，无需写缓冲
         if (proto == transport::event_response::ProtoType::kUdp) {
             if (act == transport::event_response::OptAction::kSend) {
-                sendto(frame.head.fd, frame.body.data_bytes_stream.Data(), frame.body.data_bytes_stream.Size(), 0,
-                       reinterpret_cast<const sockaddr *>(&frame.head.peer_addr), frame.head.peer_addr_len);
+                if (sendto(frame.head.fd, frame.body.data_bytes_stream.Data(),
+                           frame.body.data_bytes_stream.Size(), 0,
+                           reinterpret_cast<const sockaddr *>(&frame.head.peer_addr),
+                           frame.head.peer_addr_len) < 0) {
+                    LOGP_MSG("UDP sendto failed on fd:%d, errno:%d", frame.head.fd, errno);
+                }
             } else if (act == transport::event_response::OptAction::kClose) {
                 UnregisterFd(frame.head.fd);
             }
@@ -272,7 +277,7 @@ private:
             char ip_str[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, sizeof(ip_str));
             LOGP_MSG("Accepted connection [fd:%d] from %s:%d", conn_fd, ip_str, ntohs(client_addr.sin_port));
-            tcp_write_manager_.RegisterFd(conn_fd, epoll_fd_);
+            tcp_write_manager_.RegisterFd(conn_fd);
 
             // 为连接创建处理程序
             CreateConnHandler(conn_fd);
@@ -326,7 +331,7 @@ private:
     TcpWriteManager tcp_write_manager_;
 
     // 定时线程池依赖
-    std::shared_ptr<threading::TimerScheduler> timer_shceduler_;
+    std::shared_ptr<threading::TimerScheduler> timer_scheduler_;
 
     // 响应任务队列
     std::shared_ptr<containers::LockFreeQueue<std::shared_ptr<transport::event_response::Frame>>> event_response_queue_;
