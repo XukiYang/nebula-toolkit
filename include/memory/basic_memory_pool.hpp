@@ -1,9 +1,12 @@
 #pragma once
+#include <exception>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <vector>
 
 /* 基于C++11的线程安全的内存池 */
+namespace nebula {
 namespace memory {
 class BasicMemoryPool {
     struct Block {
@@ -50,19 +53,21 @@ public:
 
     /* 释放内存 */
     bool Deallocate(void* ptr) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        Block*                      block = static_cast<Block*>(ptr);
-        block->next                       = free_list_;
-        free_list_                        = block;
+        try
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            Block*                      block = static_cast<Block*>(ptr);
+            block->next                       = free_list_;
+            free_list_                        = block;
+        return true;
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
+            return false;
+        }
     };
 };
 
-template <typename T>
-class Rall {
-private:
-public:
-    Rall(T&& obj);
-    ~Rall();
-};
-
 }  // namespace memory
+}  // namespace nebula

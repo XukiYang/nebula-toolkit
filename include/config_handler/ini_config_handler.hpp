@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 
+namespace nebula {
 namespace config_handler {
 /* 数据值包装类 */
 struct Val {
@@ -36,7 +37,8 @@ struct Val {
     bool GetBool() const {
         std::string lower = raw_;
         std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-        return (lower == "true" || lower == "1" || lower == "t" || lower == "yes" || lower == "on");
+        return (lower == "true" || lower == "1" || lower == "t" || lower == "T" || lower == "yes" || lower == "YES"
+                || lower == "on" || lower == "ON");
     }
 
     /* 获取字符串 */
@@ -157,6 +159,11 @@ public:
         return true;
     }
 
+    /* 刷新缓存 */
+    bool FlushCache(const std::string& file_path = "") {
+        return ReadIniFile(file_path);
+    }
+
     /* 获取值,基于引用 */
     bool GetVal(const std::string& section, const std::string& key, Val& out_val) const {
         auto section_it = config_.find(section);
@@ -235,3 +242,4 @@ public:
 };
 
 }  // namespace config_handler
+}  // namespace nebula

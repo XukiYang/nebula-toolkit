@@ -2,8 +2,8 @@
 #pragma once
 #include <cstdint>
 #include <type_traits>
+namespace nebula {
 namespace containers {
-
 class BitUtils {
 public:
     BitUtils() = delete;
@@ -66,4 +66,6 @@ public:
         return (value == 0) ? 64 : ((value & 1) ? 0 : (1 + FindFirstSet(value >> 1)));
     }
 };
+
 }  // namespace containers
+}  // namespace nebula

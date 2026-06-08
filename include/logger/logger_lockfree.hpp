@@ -17,9 +17,9 @@
 #include <thread>
 #include <vector>
 
-#include "../containers/lockfree_queue.hpp"
-#include "./config_handler/ini_reader.hpp"
-
+#include "containers/lockfree_queue.hpp"
+#include "config_handler/ini_reader.hpp"
+namespace nebula {
 namespace configs {
 struct LogGlobal {
     size_t      max_file_size = 1024 * 1024;  // 1MB
@@ -55,10 +55,10 @@ public:
     enum LogLevel { MSG, INFO, WARN, DEBUG, ERROR };
 
 private:
-    static constexpr const char* CONFIG_PATH    = "./configs/log_config.ini";
-    static constexpr const char* GLOBAL_SECTION = "LOG_GLOBAL";
-    static constexpr const char* ASYNC_SECTION  = "LOG_ASYNC";  // 修复：原为 LOG_GLOBAL
-    static constexpr const char* LEVEL_SECTION  = "LOG_LEVEL";
+    static constexpr const char *CONFIG_PATH    = "./configs/log_config.ini";
+    static constexpr const char *GLOBAL_SECTION = "LOG_GLOBAL";
+    static constexpr const char *ASYNC_SECTION  = "LOG_ASYNC";  // 修复：原为 LOG_GLOBAL
+    static constexpr const char *LEVEL_SECTION  = "LOG_LEVEL";
 
     FileManager file_manager_;
 
@@ -112,7 +112,7 @@ private:
             log_level_config_.error);
     }
 
-    inline bool ShouldLog(const LogLevel& level) const {
+    inline bool ShouldLog(const LogLevel &level) const {
         switch (level) {
         case MSG:
             return log_level_config_.msg;
@@ -129,8 +129,8 @@ private:
         }
     }
 
-    inline const char* LevelToString(const LogLevel& level) const {
-        static const char* levels[] = {"[MSG] ", "[INFO] ", "[WARN] ", "[DEBUG] ", "[ERROR] "};
+    inline const char *LevelToString(const LogLevel &level) const {
+        static const char *levels[] = {"[MSG] ", "[INFO] ", "[WARN] ", "[DEBUG] ", "[ERROR] "};
         return levels[level];
     }
 
@@ -234,7 +234,7 @@ public:
     }
 
     template <typename... Args>
-    void LogCout(LogLevel level, const char* func, size_t line, Args&&... args) {
+    void LogCout(LogLevel level, const char *func, size_t line, Args &&... args) {
         if (!ShouldLog(level)) return;
 
         std::ostringstream oss;
@@ -251,7 +251,7 @@ public:
         }
     }
 
-    void LogPrint(LogLevel level, const char* func, size_t line, const char* format, ...) {
+    void LogPrint(LogLevel level, const char *func, size_t line, const char *format, ...) {
         if (!ShouldLog(level)) return;
 
         va_list args;
@@ -275,7 +275,7 @@ public:
     }
 
     template <typename... Args>
-    void LogFmt(LogLevel level, const char* func, size_t line, fmt::format_string<Args...> format, Args&&... args) {
+    void LogFmt(LogLevel level, const char *func, size_t line, fmt::format_string<Args...> format, Args &&... args) {
         if (!ShouldLog(level)) return;
 
         std::string        log_str = fmt::format(format, std::forward<Args>(args)...);
@@ -294,7 +294,7 @@ public:
     }
 
     template <typename T>
-    void LogVector(LogLevel level, const char* func, size_t line, const std::vector<T>& vector) {
+    void LogVector(LogLevel level, const char *func, size_t line, const std::vector<T> &vector) {
         if (!ShouldLog(level)) return;
 
         std::ostringstream oss;
@@ -315,7 +315,7 @@ public:
         std::cout << oss.str();
     }
 
-    static Logger& Instance() {
+    static Logger &Instance() {
         static Logger instance;
         return instance;
     }
@@ -340,3 +340,5 @@ public:
 #define LOGF_WARN(fmt, ...)  Logger::Instance().LogFmt(Logger::WARN, __func__, __LINE__, fmt, __VA_ARGS__)
 #define LOGF_DEBUG(fmt, ...) Logger::Instance().LogFmt(Logger::DEBUG, __func__, __LINE__, fmt, __VA_ARGS__)
 #define LOGF_ERROR(fmt, ...) Logger::Instance().LogFmt(Logger::ERROR, __func__, __LINE__, fmt, __VA_ARGS__)
+
+}  // namespace nebula
