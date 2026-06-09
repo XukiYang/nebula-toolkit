@@ -1,155 +1,67 @@
 # ================================================
-# Clang-Format 配置文件模板
-# 每个配置项都包含详细的功能注释
-# 基于 ClangFormat 14+ 版本
+# Clang-Format 配置
+# 基于 Google 风格，针对 nebula-toolkit 项目调优
+# 兼容 ClangFormat 10+
 # ================================================
 
-# 基础代码风格配置
-# --------------------------------------------------------------------
-
-# 基于哪种预定义风格进行配置[1,6](@ref)
-# 可选值: LLVM, Google, Chromium, Mozilla, WebKit, Microsoft, GNU
 BasedOnStyle: Google
-
-# 指定要格式化的编程语言[1](@ref)
 Language: Cpp
-
-# 指定使用的C++标准[1](@ref)
 Standard: c++17
 
-# 缩进和空格配置
-# --------------------------------------------------------------------
-
-# 访问说明符(public、private等)的偏移量[3,7](@ref)
-# 负数表示向外缩进，正数表示向内缩进
+# ── 缩进 ─────────────────────────────────────────────
 AccessModifierOffset: -4
-
-# 基本缩进宽度（空格数）[1,3](@ref)
 IndentWidth: 4
-
-# Tab字符的宽度（空格数）[1](@ref)
 TabWidth: 4
-
-# 是否使用Tab字符进行缩进[3,7](@ref)
-# 可选值: Never, ForIndentation, ForContinuationAndIndentation, Always
 UseTab: Never
-
-# 续行（换行后）的缩进宽度[3](@ref)
 ContinuationIndentWidth: 4
+IndentCaseLabels: false
+NamespaceIndentation: None
 
-# 行宽限制和换行配置
-# --------------------------------------------------------------------
-
-# 每行代码的最大字符宽度限制[1,3](@ref)
-# 0 表示不限制行宽
+# ── 行宽与换行 ───────────────────────────────────────
 ColumnLimit: 120
-
-# 在二元运算符前换行[3,7](@ref)
-# 可选值: None(在操作符后换行), NonAssignment(在非赋值的操作符前换行), All(在操作符前换行)
 BreakBeforeBinaryOperators: NonAssignment
-
-# 大括号换行风格[1,3,7](@ref)
-# 可选值: Attach, Linux, Mozilla, Stroustrup, Allman, GNU, WebKit, Custom
 BreakBeforeBraces: Attach
-
-# 在三元运算符前换行[3,7](@ref)
 BreakBeforeTernaryOperators: true
 
-# 函数调用和声明配置
-# --------------------------------------------------------------------
-
-# 允许函数声明的所有参数放在下一行[3,7](@ref)
+# ── 短语句 ───────────────────────────────────────────
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Always
 AllowAllParametersOfDeclarationOnNextLine: true
 
-# 允许短函数放在单行[3,7](@ref)
-# 可选值: None, InlineOnly, Empty, Inline, All
-AllowShortFunctionsOnASingleLine: Empty
-
-# 允许短的if语句保持在同一行[3,7](@ref)
-AllowShortIfStatementsOnASingleLine: true
-
-# 允许短的循环保持在同一行[3,7](@ref)
-AllowShortLoopsOnASingleLine: true
-
-# 短代码块是否放在同一行[3](@ref)
-AllowShortBlocksOnASingleLine: false
-
-# 括号和空格配置
-# --------------------------------------------------------------------
-
-# 开括号后的对齐方式[3,7](@ref)
+# ── 对齐 ─────────────────────────────────────────────
 AlignAfterOpenBracket: Align
-
-# 水平对齐二元和三元表达式的操作数[3,7](@ref)
 AlignOperands: true
-
-# 对齐连续的尾随注释[3,7](@ref)
 AlignTrailingComments: true
-
-# 圆括号前空格的规则[3,7](@ref)
-SpaceBeforeParens: ControlStatements
-
-# 在赋值运算符之前添加空格[3,7](@ref)
-SpaceBeforeAssignmentOperators: true
-
-# 对齐和排列配置
-# --------------------------------------------------------------------
-
-# 连续赋值语句的对齐[3,7](@ref)
-AlignConsecutiveAssignments: true
-
-# 连续声明的对齐[3,7](@ref)
-AlignConsecutiveDeclarations: true
-
-# 连续宏定义的对齐[7](@ref)
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
 AlignConsecutiveMacros: true
 
-# 指针和引用对齐方式[1,3,7](@ref)
-# Left: char* argv[]
-# Right: char *argv[]
+# ── 指针与引用 ───────────────────────────────────────
+# Right: char *p, int &ref  (* 和 & 靠近变量名，可读性更强)
 PointerAlignment: Right
-
-# 注释和空行配置
-# --------------------------------------------------------------------
-
-# 允许重新排版注释[3,7](@ref)
-ReflowComments: true
-
-# 对#include进行排序[3,7](@ref)
-SortIncludes: true
-
-# 连续空行的最大保留数量[3,7](@ref)
-MaxEmptyLinesToKeep: 1
-
-# 是否在代码块开始处保留空行[3,7](@ref)
-KeepEmptyLinesAtTheStartOfBlocks: false
-
-# 大括号换行详细配置（当BreakBeforeBraces为Custom时生效）
-# --------------------------------------------------------------------
-BraceWrapping:
-  # class定义后是否换行[3,7](@ref)
-  AfterClass: false
-  # 控制语句后是否换行[3,7](@ref)
-  AfterControlStatement: false
-  # 函数定义后是否换行[3,7](@ref)
-  AfterFunction: false
-  # 命名空间后是否换行[3,7](@ref)
-  AfterNamespace: false
-
-# 高级配置
-# --------------------------------------------------------------------
-
-# 继承最常用的指针和引用对齐方式[3,7](@ref)
 DerivePointerAlignment: false
 
-# 去除C++11的列表初始化的大括号{后和}前的空格[3,7](@ref)
+# ── 模板 ─────────────────────────────────────────────
+AlwaysBreakTemplateDeclarations: Yes
+
+# ── 构造函数初始化列表 ──────────────────────────────
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+# ── 参数与实参换行 ──────────────────────────────────
+BinPackArguments: false
+BinPackParameters: false
+
+# ── 空格 ─────────────────────────────────────────────
+SpaceBeforeParens: ControlStatements
+SpaceBeforeAssignmentOperators: true
 Cpp11BracedListStyle: true
 
-# 在构造函数的初始化列表的逗号前换行[3,7](@ref)
-BreakConstructorInitializersBeforeComma: false
-
-# 缩进case标签[3,7](@ref)
-IndentCaseLabels: false
-
-# 命名空间内容的缩进方式[3,7](@ref)
-NamespaceIndentation: None
+# ── 注释与空行 ──────────────────────────────────────
+ReflowComments: true
+FixNamespaceComments: true
+SortIncludes: true
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
