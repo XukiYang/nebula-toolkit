@@ -3,3 +3,5 @@ nebula_add_example(example_epoll_udp_tcp ${CMAKE_CURRENT_SOURCE_DIR}/epoll_udp_t
 nebula_add_example(example_reactor_tcp_unpack_echo ${CMAKE_CURRENT_SOURCE_DIR}/reactor_tcp_unpack_echo_demo.cpp)
 nebula_add_example(example_shmstore_sender ${CMAKE_CURRENT_SOURCE_DIR}/shmstore/sender.cpp)
 nebula_add_example(example_shmstore_receiver ${CMAKE_CURRENT_SOURCE_DIR}/shmstore/receiver.cpp)
+nebula_add_example(example_multi_index ${CMAKE_CURRENT_SOURCE_DIR}/boost/multi_index.cpp)
+nebula_add_example(example_managed_shm ${CMAKE_CURRENT_SOURCE_DIR}/boost/managed_shared_memory.cpp)
