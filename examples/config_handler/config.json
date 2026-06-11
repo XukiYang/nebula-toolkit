@@ -1,0 +1,28 @@
+{
+    "app": {
+        "name": "nebula-toolkit",
+        "version": 2
+    },
+    "server": {
+        "host": "127.0.0.1",
+        "port": 8080,
+        "debug": true
+    },
+    "log": {
+        "global": {
+            "max_file_size_kb": 1024,
+            "log_directory": "./logs"
+        },
+        "async": {
+            "backend": "lockfree",
+            "ring_buffer_size": 65536
+        },
+        "level": {
+            "msg": true,
+            "info": true,
+            "warn": true,
+            "debug": false,
+            "error": true
+        }
+    }
+}
