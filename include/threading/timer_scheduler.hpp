@@ -2,17 +2,19 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <queue>
 #include <thread>
 #include <unordered_set>
-
-#include "logger/logger.hpp"
-#include "threading/thread_pool.hpp"
+#include <vector>
 
 namespace nebula {
 namespace threading {
+
+using CallBack = std::function<size_t(void)>;
+
 struct TimerTask {
     std::chrono::steady_clock::time_point exec_time;
     CallBack                              callback;
@@ -29,20 +31,61 @@ private:
     std::unordered_set<uint64_t>   canceled_ids_;      // 退出任务ID set
     std::unique_ptr<std::thread>   scheduler_thread_;  // 调度器线程
     std::condition_variable        scheduler_cv_;      // 调度器线程条件变量
-    std::unique_ptr<ThreadPool>    thread_pool_;       // 线程池
     std::atomic<uint64_t>          next_id_{0};        // 任务ID
     std::mutex                     mutex_;             // 保护优先级队列锁
     std::atomic<bool>              running_{false};    // 调度器线程执行原子
 
+    // 内联线程池
+    std::vector<std::thread> workers_;
+    std::queue<CallBack>     task_queue_;
+    std::mutex               queue_mutex_;
+    std::condition_variable  queue_cv_;
+    std::atomic<bool>        workers_running_{true};
+
+    /// @brief 工作线程消费循环
+    void WorkerLoop() {
+        while (true) {
+            CallBack cb_task;
+            {
+                std::unique_lock<std::mutex> lock(queue_mutex_);
+                queue_cv_.wait(lock, [this] {
+                    return !workers_running_.load(std::memory_order_acquire) || !task_queue_.empty();
+                });
+                if (!workers_running_ && task_queue_.empty()) return;
+                cb_task = std::move(task_queue_.front());
+                task_queue_.pop();
+            }
+            cb_task();
+        }
+    }
+
+    /// @brief 提交任务到工作线程
+    void PostTask(CallBack cb_task) {
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            task_queue_.push(std::move(cb_task));
+        }
+        queue_cv_.notify_one();
+    }
+
 public:
-    explicit TimerScheduler(size_t thread_count = std::thread::hardware_concurrency())
-        : thread_pool_(std::make_unique<ThreadPool>(thread_count)){};
+    explicit TimerScheduler(size_t thread_count = std::thread::hardware_concurrency()) {
+        for (size_t i = 0; i < thread_count; ++i) {
+            workers_.emplace_back(&TimerScheduler::WorkerLoop, this);
+        }
+    }
+
     ~TimerScheduler() {
         Stop();
-        if (scheduler_thread_ && scheduler_thread_->joinable()) {
-            scheduler_thread_->join();
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            workers_running_.store(false, std::memory_order_release);
         }
-    };
+        queue_cv_.notify_all();
+        for (auto &worker : workers_) {
+            if (worker.joinable()) worker.join();
+        }
+    }
 
 public:
     /// @brief 提交定时任务
@@ -77,16 +120,15 @@ public:
         }
     };
 
-    /// @brief 停止调调度器
+    /// @brief 停止调度器
     void Stop() {
         if (running_) {
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 running_ = false;
             }
-            // 唤醒线程退出
             scheduler_cv_.notify_all();
-            if (scheduler_thread_->joinable()) {
+            if (scheduler_thread_ && scheduler_thread_->joinable()) {
                 scheduler_thread_->join();
             }
         }
@@ -96,31 +138,28 @@ public:
     void RunScheduler() {
         while (running_.load()) {
             std::unique_lock<std::mutex> lock(mutex_);
-            // 若无定时任务，则主循环线程休息
             if (timer_tasks_.empty()) {
                 scheduler_cv_.wait(lock, [this] { return !running_ || !timer_tasks_.empty(); });
                 continue;
             }
-            // 判断是否为取消任务ID
             auto task_id = timer_tasks_.top().task_id;
             if (canceled_ids_.count(task_id)) {
-                timer_tasks_.pop();            // 出队
-                canceled_ids_.erase(task_id);  // 删除
+                timer_tasks_.pop();
+                canceled_ids_.erase(task_id);
                 continue;
             }
 
             const auto &next_timer_task = timer_tasks_.top();
-            // 到时间的任务则提交到线程池托管执行
             if (std::chrono::steady_clock::now() >= next_timer_task.exec_time) {
                 auto cur_timer_task = next_timer_task;
-                timer_tasks_.pop();  // 出队
-                lock.unlock();       // 释放锁后再提交任务
-                thread_pool_->PostTask(std::move(cur_timer_task.callback));
+                timer_tasks_.pop();
+                lock.unlock();
+                PostTask(std::move(cur_timer_task.callback));
             } else {
                 scheduler_cv_.wait_until(lock, next_timer_task.exec_time);
             }
         }
     };
 };
-};  // namespace threading
-};  // namespace nebula
+}  // namespace threading
+}  // namespace nebula
