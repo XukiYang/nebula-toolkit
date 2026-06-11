@@ -20,8 +20,9 @@
 #include <type_traits>
 #include <vector>
 
-#include "config_handler/ini_reader.hpp"
+#include "config_handler/json_reader.hpp"
 #include "containers/circular_buffer.hpp"
+#include "containers/lockfree_queue.hpp"
 
 #ifdef min
 #undef min
@@ -34,7 +35,8 @@
 #endif
 
 namespace nebula {
-namespace configs {
+namespace logger {
+
 struct LogGlobal {
     size_t      max_file_size = 1024 * 1024;
     bool        print_line    = false;
@@ -44,21 +46,21 @@ struct LogGlobal {
 };
 
 struct LogAsync {
-    size_t ring_buffer_size_kb = 64 * 1024;
-    size_t batch_size_kb       = 4 * 1024;
-    size_t max_flush_size      = 64 * 1024;
+    std::string backend           = "mutex";
+    size_t      ring_buffer_size  = 64 * 1024;
+    size_t      batch_size        = 4 * 1024;
+    size_t      max_flush_size    = 32 * 1024;
 };
 
-struct LogLevel {
+struct LogLevelConfig {
     bool msg   = true;
     bool info  = true;
     bool warn  = true;
     bool debug = true;
     bool error = true;
 };
-}  // namespace configs
 
-namespace logger {
+enum class AsyncBackend { kMutex, kLockFree };
 
 struct FileManager {
     std::ofstream file;
@@ -71,24 +73,26 @@ public:
     enum LogLevel { MSG, INFO, WARN, DEBUG, ERROR };
 
 private:
-    static constexpr const char* CONFIG_PATH    = "./configs/log_config.ini";
-    static constexpr const char* GLOBAL_SECTION = "LOG_GLOBAL";
-    static constexpr const char* ASYNC_SECTION  = "LOG_GLOBAL";
-    static constexpr const char* LEVEL_SECTION  = "LOG_LEVEL";
+    static constexpr const char* CONFIG_PATH = "./configs/log_config.json";
 
-    std::mutex              mutex_;
-    FileManager             file_manager_;
-    configs::LogGlobal      log_global_config_;
-    configs::LogAsync       log_async_config_;
-    configs::LogLevel       log_level_config_;
-    std::unique_ptr<config_handler::IniReader> ini_reader_;
+    std::mutex  mutex_;
+    FileManager file_manager_;
+
+    LogGlobal                          log_global_config_;
+    LogAsync                           log_async_config_;
+    LogLevelConfig                     log_level_config_;
+    AsyncBackend                       backend_ = AsyncBackend::kMutex;
+    std::unique_ptr<config_handler::JsonReader> json_reader_;
 
     std::atomic<bool>            monitor_config_thread_running_{true};
     std::unique_ptr<std::thread> config_monitor_;
 
+    // 双缓冲：按需初始化
+    std::unique_ptr<containers::CircularBuffer>          ring_buffer_;
+    std::unique_ptr<containers::LockFreeQueue<char>>     lockfree_buffer_;
+
     std::mutex                              cv_mutex_;
     std::condition_variable                 cv_;
-    std::unique_ptr<containers::CircularBuffer> ring_buffer_;
     std::unique_ptr<std::thread>            cust_thread_;
     bool                                    has_pending_data_{false};
     std::atomic<bool>                       cust_thread_running_{true};
@@ -96,56 +100,61 @@ private:
 private:
     void UpdateConfig() {
         std::lock_guard<std::mutex> lock(mutex_);
-        ini_reader_->GetValue(GLOBAL_SECTION, "max_file_size_kb", log_global_config_.max_file_size);
+        json_reader_->GetUInt("log.global.max_file_size_kb", log_global_config_.max_file_size);
         log_global_config_.max_file_size *= 1024;
-        ini_reader_->GetValue(GLOBAL_SECTION, "print_line", log_global_config_.print_line);
-        ini_reader_->GetValue(GLOBAL_SECTION, "print_func", log_global_config_.print_func);
-        ini_reader_->GetValue(GLOBAL_SECTION, "print_time", log_global_config_.print_time);
-        ini_reader_->GetValue(GLOBAL_SECTION, "log_directory", log_global_config_.log_directory);
+        json_reader_->GetBool("log.global.print_line", log_global_config_.print_line);
+        json_reader_->GetBool("log.global.print_func", log_global_config_.print_func);
+        json_reader_->GetBool("log.global.print_time", log_global_config_.print_time);
+        json_reader_->GetString("log.global.log_directory", log_global_config_.log_directory);
 
-        ini_reader_->GetValue(ASYNC_SECTION, "ring_buffer_size_kb", log_async_config_.ring_buffer_size_kb);
-        ini_reader_->GetValue(ASYNC_SECTION, "batch_size_kb", log_async_config_.batch_size_kb);
-        ini_reader_->GetValue(ASYNC_SECTION, "max_flush_size", log_async_config_.max_flush_size);
+        std::string backend_str;
+        json_reader_->GetString("log.async.backend", backend_str);
+        if (backend_str == "lockfree") {
+            backend_ = AsyncBackend::kLockFree;
+        } else {
+            backend_ = AsyncBackend::kMutex;
+        }
 
-        ini_reader_->GetValue(LEVEL_SECTION, "msg", log_level_config_.msg);
-        ini_reader_->GetValue(LEVEL_SECTION, "info", log_level_config_.info);
-        ini_reader_->GetValue(LEVEL_SECTION, "warn", log_level_config_.warn);
-        ini_reader_->GetValue(LEVEL_SECTION, "debug", log_level_config_.debug);
-        ini_reader_->GetValue(LEVEL_SECTION, "error", log_level_config_.error);
+        size_t ring_buf_kb = log_async_config_.ring_buffer_size / 1024;
+        json_reader_->GetUInt("log.async.ring_buffer_size_kb", ring_buf_kb);
+        log_async_config_.ring_buffer_size = ring_buf_kb * 1024;
+
+        size_t batch_kb = log_async_config_.batch_size / 1024;
+        json_reader_->GetUInt("log.async.batch_size_kb", batch_kb);
+        log_async_config_.batch_size = batch_kb * 1024;
+
+        size_t max_flush_kb = log_async_config_.max_flush_size / 1024;
+        json_reader_->GetUInt("log.async.max_flush_size", max_flush_kb);
+        log_async_config_.max_flush_size = max_flush_kb * 1024;
+
+        json_reader_->GetBool("log.level.msg", log_level_config_.msg);
+        json_reader_->GetBool("log.level.info", log_level_config_.info);
+        json_reader_->GetBool("log.level.warn", log_level_config_.warn);
+        json_reader_->GetBool("log.level.debug", log_level_config_.debug);
+        json_reader_->GetBool("log.level.error", log_level_config_.error);
     }
 
     void MonitorConfigChanges() {
-        time_t last_mod = 0;
         while (monitor_config_thread_running_.load()) {
-            struct stat file_stat;
-            if (stat(CONFIG_PATH, &file_stat) == 0) {
-                if (file_stat.st_mtime != last_mod) {
-                    last_mod = file_stat.st_mtime;
-                    UpdateConfig();
-                }
+            if (json_reader_->IsModified()) {
+                UpdateConfig();
             }
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     }
 
-    bool ShouldLog(const LogLevel& level) const {
+    bool ShouldLog(LogLevel level) const {
         switch (level) {
-        case MSG:
-            return log_level_config_.msg;
-        case INFO:
-            return log_level_config_.info;
-        case WARN:
-            return log_level_config_.warn;
-        case DEBUG:
-            return log_level_config_.debug;
-        case ERROR:
-            return log_level_config_.error;
-        default:
-            return false;
+        case MSG:   return log_level_config_.msg;
+        case INFO:  return log_level_config_.info;
+        case WARN:  return log_level_config_.warn;
+        case DEBUG: return log_level_config_.debug;
+        case ERROR: return log_level_config_.error;
+        default:    return false;
         }
     }
 
-    const char* LevelToString(const LogLevel& level) const {
+    const char* LevelToString(LogLevel level) const {
         static const char* kLevels[] = {"[MSG] ", "[INFO] ", "[WARN] ", "[DEBUG] ", "[ERROR] "};
         return kLevels[level];
     }
@@ -165,6 +174,21 @@ private:
         std::tm tm   = *std::localtime(&time);
         std::ostringstream oss;
         oss << std::put_time(&tm, "%Y-%m-%d");
+        return oss.str();
+    }
+
+    /// @brief 提取前缀字符串，消除各 Log 方法的重复代码
+    std::string FormatPrefix(LogLevel level, const char* func, size_t line) const {
+        std::ostringstream oss;
+        if (log_global_config_.print_time) {
+            oss << CurrentTime() << " " << LevelToString(level);
+        }
+        if (log_global_config_.print_func) {
+            oss << "[" << func << " ";
+        }
+        if (log_global_config_.print_line) {
+            oss << "L" << line << "] ";
+        }
         return oss.str();
     }
 
@@ -189,6 +213,15 @@ private:
         }
     }
 
+    /// @brief 统一写入缓冲区（根据后端选择）
+    void WriteToBuffer(const char* data, size_t size) {
+        if (backend_ == AsyncBackend::kLockFree && lockfree_buffer_) {
+            lockfree_buffer_->PushBulk(data, size);
+        } else if (ring_buffer_) {
+            ring_buffer_->Write(data, size);
+        }
+    }
+
     void NotifyConsumer() {
         {
             std::lock_guard<std::mutex> lock(cv_mutex_);
@@ -198,8 +231,9 @@ private:
     }
 
     void CustThreadProc() {
-        size_t               batch_size = log_async_config_.batch_size_kb;
-        std::vector<uint8_t> read_buffer(batch_size);
+        const size_t       batch_size = log_async_config_.batch_size;
+        std::vector<char>  read_buffer(batch_size);
+
         while (true) {
             {
                 std::unique_lock<std::mutex> lock(cv_mutex_);
@@ -209,27 +243,45 @@ private:
                 has_pending_data_ = false;
             }
 
-            while (true) {
-                const size_t available_to_read = ring_buffer_->AvailableToRead();
-                const size_t min_read_bytes    = std::min(available_to_read, log_async_config_.batch_size_kb);
-                if (min_read_bytes == 0) {
-                    break;
+            if (backend_ == AsyncBackend::kLockFree && lockfree_buffer_) {
+                // LockFree 后端
+                while (true) {
+                    size_t available = lockfree_buffer_->AvaToRead();
+                    size_t to_read   = std::min(available, batch_size);
+                    if (to_read == 0) break;
+                    if (read_buffer.size() < to_read) read_buffer.resize(to_read);
+                    lockfree_buffer_->PopBulk(read_buffer.data(), to_read);
+                    RotateFileIfNeeded();
+                    if (file_manager_.file.is_open()) {
+                        file_manager_.file.write(read_buffer.data(), static_cast<std::streamsize>(to_read));
+                        if (to_read >= log_async_config_.max_flush_size) {
+                            file_manager_.file.flush();
+                        }
+                    }
                 }
-                if (read_buffer.size() < min_read_bytes) {
-                    read_buffer.resize(min_read_bytes);
-                }
-                ring_buffer_->Read(read_buffer, min_read_bytes);
-                RotateFileIfNeeded();
-                if (file_manager_.file.is_open()) {
-                    file_manager_.file.write(reinterpret_cast<const char*>(read_buffer.data()), min_read_bytes);
-                    if (min_read_bytes >= log_async_config_.max_flush_size) {
-                        file_manager_.file.flush();
+            } else if (ring_buffer_) {
+                // Mutex 后端
+                while (true) {
+                    const size_t available = ring_buffer_->AvailableToRead();
+                    const size_t to_read   = std::min(available, batch_size);
+                    if (to_read == 0) break;
+                    if (read_buffer.size() < to_read) read_buffer.resize(to_read);
+                    ring_buffer_->Read(read_buffer, to_read);
+                    RotateFileIfNeeded();
+                    if (file_manager_.file.is_open()) {
+                        file_manager_.file.write(read_buffer.data(), static_cast<std::streamsize>(to_read));
+                        if (to_read >= log_async_config_.max_flush_size) {
+                            file_manager_.file.flush();
+                        }
                     }
                 }
             }
 
-            if (!cust_thread_running_.load() && ring_buffer_->IsEmpty()) {
-                break;
+            if (!cust_thread_running_.load()) {
+                bool empty = (backend_ == AsyncBackend::kLockFree)
+                                 ? (!lockfree_buffer_ || lockfree_buffer_->Empty())
+                                 : (!ring_buffer_ || ring_buffer_->IsEmpty());
+                if (empty) break;
             }
         }
 
@@ -239,10 +291,17 @@ private:
     }
 
 public:
-    Logger()
-        : ini_reader_(std::make_unique<config_handler::IniReader>(CONFIG_PATH)),
-          ring_buffer_(std::make_unique<containers::CircularBuffer>(log_async_config_.ring_buffer_size_kb)) {
+    Logger() : json_reader_(std::make_unique<config_handler::JsonReader>(CONFIG_PATH)) {
         UpdateConfig();
+
+        // 根据后端初始化缓冲区
+        if (backend_ == AsyncBackend::kLockFree) {
+            lockfree_buffer_ = std::make_unique<containers::LockFreeQueue<char>>(log_async_config_.ring_buffer_size);
+        } else {
+            ring_buffer_ = std::make_unique<containers::CircularBuffer>(log_async_config_.ring_buffer_size);
+        }
+
+        OpenNewFile();
         config_monitor_ = std::make_unique<std::thread>(&Logger::MonitorConfigChanges, this);
         cust_thread_    = std::make_unique<std::thread>(&Logger::CustThreadProc, this);
     }
@@ -265,114 +324,67 @@ public:
 
     template <typename... Args>
     void LogCout(LogLevel level, const char* func, size_t line, Args&&... args) {
-        if (!ShouldLog(level)) {
-            return;
-        }
+        if (!ShouldLog(level)) return;
 
-        std::lock_guard<std::mutex> lock(mutex_);
-        std::ostringstream          oss;
-        if (log_global_config_.print_time) {
-            oss << CurrentTime() << " " << LevelToString(level);
-        }
-        if (log_global_config_.print_func) {
-            oss << "[" << func << " ";
-        }
-        if (log_global_config_.print_line) {
-            oss << "L" << line << "] ";
-        }
+        std::ostringstream oss;
+        oss << FormatPrefix(level, func, line);
         ((oss << std::forward<Args>(args)), ...) << "\n";
 
         const std::string log_line = oss.str();
         std::cout << log_line;
         if (level != MSG) {
-            ring_buffer_->Write(log_line.data(), log_line.size());
+            WriteToBuffer(log_line.data(), log_line.size());
             NotifyConsumer();
         }
     }
 
     void LogPrint(LogLevel level, const char* func, size_t line, const char* format, ...) {
-        if (!ShouldLog(level)) {
-            return;
-        }
+        if (!ShouldLog(level)) return;
 
-        std::lock_guard<std::mutex> lock(mutex_);
-        va_list                     args;
+        va_list args;
         va_start(args, format);
         char buffer[1024];
         vsnprintf(buffer, sizeof(buffer), format, args);
         va_end(args);
 
         std::ostringstream oss;
-        if (log_global_config_.print_time) {
-            oss << CurrentTime() << " " << LevelToString(level);
-        }
-        if (log_global_config_.print_func) {
-            oss << "[" << func << " ";
-        }
-        if (log_global_config_.print_line) {
-            oss << "L" << line << "] ";
-        }
-        oss << buffer << "\n";
+        oss << FormatPrefix(level, func, line) << buffer << "\n";
 
         const std::string log_line = oss.str();
         std::cout << log_line;
         if (level != MSG) {
-            ring_buffer_->Write(log_line.data(), log_line.size());
+            WriteToBuffer(log_line.data(), log_line.size());
             NotifyConsumer();
         }
     }
 
     template <typename... Args>
     void LogFmt(LogLevel level, const char* func, size_t line, fmt::format_string<Args...> format, Args&&... args) {
-        if (!ShouldLog(level)) {
-            return;
-        }
+        if (!ShouldLog(level)) return;
 
         std::ostringstream oss;
-        if (log_global_config_.print_time) {
-            oss << CurrentTime() << " " << LevelToString(level);
-        }
-        if (log_global_config_.print_func) {
-            oss << "[" << func << " ";
-        }
-        if (log_global_config_.print_line) {
-            oss << "L" << line << "] ";
-        }
-        oss << fmt::format(format, std::forward<Args>(args)...) << "\n";
+        oss << FormatPrefix(level, func, line) << fmt::format(format, std::forward<Args>(args)...) << "\n";
 
         const std::string log_line = oss.str();
         std::cout << log_line;
         if (level != MSG) {
-            ring_buffer_->Write(log_line.data(), log_line.size());
+            WriteToBuffer(log_line.data(), log_line.size());
             NotifyConsumer();
         }
     }
 
     template <typename T>
-    void LogVector(LogLevel level, const char* func, size_t line, const std::vector<T>& vector) {
-        if (!ShouldLog(level)) {
-            return;
-        }
+    void LogVector(LogLevel level, const char* func, size_t line, const std::vector<T>& vec) {
+        if (!ShouldLog(level)) return;
 
-        std::lock_guard<std::mutex> lock(mutex_);
-        std::ostringstream          oss;
-        if (log_global_config_.print_time) {
-            oss << CurrentTime() << " " << LevelToString(level);
-        }
-        if (log_global_config_.print_func) {
-            oss << "[" << func << " ";
-        }
-        if (log_global_config_.print_line) {
-            oss << "L" << line << "] ";
-        }
-        for (size_t i = 0; i < vector.size(); ++i) {
-            if (i != 0) {
-                oss << ",";
-            }
+        std::ostringstream oss;
+        oss << FormatPrefix(level, func, line);
+        for (size_t i = 0; i < vec.size(); ++i) {
+            if (i != 0) oss << ",";
             if constexpr (std::is_same_v<T, unsigned char> || std::is_same_v<T, uint8_t>) {
-                oss << static_cast<int>(vector[i]);
+                oss << static_cast<int>(vec[i]);
             } else {
-                oss << vector[i];
+                oss << vec[i];
             }
         }
         oss << "\n";
@@ -380,7 +392,7 @@ public:
         const std::string log_line = oss.str();
         std::cout << log_line;
         if (level != MSG) {
-            ring_buffer_->Write(log_line.data(), log_line.size());
+            WriteToBuffer(log_line.data(), log_line.size());
             NotifyConsumer();
         }
     }
