@@ -65,23 +65,32 @@ public:
         return *this;
     }
 
-    /* String类型序列化 */
+    /* String类型序列化（4字节长度前缀 + 数据） */
     BytesStream &operator<<(const std::string &data) {
-        size_t t_size = data.size();
-        if (write_pos_ + t_size > buffer_.size()) {
+        uint32_t len = static_cast<uint32_t>(data.size());
+        size_t total = sizeof(uint32_t) + len;
+        if (write_pos_ + total > buffer_.size()) {
             throw std::runtime_error("Write overflow in BytesStream");
         }
-        std::memcpy(buffer_.data() + write_pos_, data.data(), t_size);
-        write_pos_ += t_size;
+        std::memcpy(buffer_.data() + write_pos_, &len, sizeof(uint32_t));
+        write_pos_ += sizeof(uint32_t);
+        std::memcpy(buffer_.data() + write_pos_, data.data(), len);
+        write_pos_ += len;
         return *this;
     }
     BytesStream &operator>>(std::string &data) {
-        size_t t_size = data.size();
-        if (read_pos_ + t_size > buffer_.size()) {
+        uint32_t len = 0;
+        if (read_pos_ + sizeof(uint32_t) > buffer_.size()) {
             throw std::runtime_error("Read overflow in BytesStream");
         }
-        std::memcpy(data.data(), buffer_.data() + read_pos_, t_size);
-        read_pos_ += t_size;
+        std::memcpy(&len, buffer_.data() + read_pos_, sizeof(uint32_t));
+        read_pos_ += sizeof(uint32_t);
+        if (read_pos_ + len > buffer_.size()) {
+            throw std::runtime_error("Read overflow in BytesStream");
+        }
+        data.resize(len);
+        std::memcpy(data.data(), buffer_.data() + read_pos_, len);
+        read_pos_ += len;
         return *this;
     }
 
@@ -129,9 +138,21 @@ public:
         return buffer_.end();
     }
 
-    /* 获取头指针 */
-    const char *Data() {
-        return buffer_.data();
+    /* 手动扩容 buffer */
+    void Reserve(size_t new_size) {
+        if (new_size > buffer_.size()) {
+            buffer_.resize(new_size);
+        }
+    }
+
+    /* 读取指定字节并返回 vector<char> */
+    std::vector<char> ReadBytes(size_t count) {
+        if (read_pos_ + count > write_pos_) {
+            throw std::runtime_error("Read overflow in BytesStream");
+        }
+        std::vector<char> result(buffer_.data() + read_pos_, buffer_.data() + read_pos_ + count);
+        read_pos_ += count;
+        return result;
     }
 
     /* 提交操作 */

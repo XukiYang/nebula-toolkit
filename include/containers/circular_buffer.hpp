@@ -17,7 +17,7 @@ namespace nebula {
 namespace containers {
 
 /// @brief 环形缓冲区
-/// @note 一般线程安全、支持迭代器、0拷贝的线性操作、基本符合google style
+/// @note 线程安全、0拷贝的线性操作、基本符合google style
 class CircularBuffer {
 public:
     /// @brief 返回结果枚举
@@ -210,25 +210,35 @@ public:
     }
 
 public:
-    /// @brief hex打印缓冲区
+    /// @brief hex打印缓冲区（持锁复制快照，释放锁后再打印）
     void PrintBuffer() {
-        std::lock_guard<std::mutex> lock(mutex_);
-        std::ios_base::fmtflags     original_flags = std::cout.flags();
+        std::vector<uint8_t> snapshot;
+        size_t snapshot_read = 0;
+        size_t snapshot_write = 0;
+        size_t snapshot_length = 0;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            snapshot = buffer_;
+            snapshot_read = read_index_;
+            snapshot_write = write_index_;
+            snapshot_length = length_;
+        }
 
+        std::ios_base::fmtflags original_flags = std::cout.flags();
         std::cout << "┌──────────────────────────────────────┐\n";
-        std::cout << "│ Ring Buffer [R:" << std::setw(2) << read_index_ << " W:" << std::setw(2) << write_index_
-                  << " L:" << std::setw(2) << length_ << "] │\n";
+        std::cout << "│ Ring Buffer [R:" << std::setw(2) << snapshot_read << " W:" << std::setw(2) << snapshot_write
+                  << " L:" << std::setw(2) << snapshot_length << "] │\n";
         std::cout << "├──────────────────────────────────────┤\n";
 
         std::cout << "│ ";
         std::cout << std::hex << std::setfill('0');
-        for (size_t i = 0; i < buffer_.size(); ++i) {
-            std::cout << std::setw(2) << static_cast<int>(buffer_[i]) << " ";
-            if ((i + 1) % 8 == 0 && (i + 1) != buffer_.size()) {
+        for (size_t i = 0; i < snapshot.size(); ++i) {
+            std::cout << std::setw(2) << static_cast<int>(snapshot[i]) << " ";
+            if ((i + 1) % 8 == 0 && (i + 1) != snapshot.size()) {
                 std::cout << "│\n│ ";
             }
         }
-        size_t remaining = 8 - (buffer_.size() % 8 ? buffer_.size() % 8 : 8);
+        size_t remaining = 8 - (snapshot.size() % 8 ? snapshot.size() % 8 : 8);
         for (size_t i = 0; i < remaining; ++i) {
             std::cout << "   ";
         }
@@ -236,13 +246,6 @@ public:
         std::cout << "│\n";
         std::cout << "└──────────────────────────────────────┘\n";
         std::cout.flags(original_flags);
-    }
-
-    /// @brief 动态更新缓冲区容器实际大小
-    /// @return
-    size_t Resize(size_t buffer_size) {
-        buffer_.resize(buffer_size);
-        return buffer_.size();
     }
 
     /// @brief 返回缓冲区容器实际大小
@@ -311,23 +314,10 @@ public:
     }
 
 public:
-    /// 迭代器指针使用const保护,避免非法操作
-
-    /// @brief 迭代器 begin
-    /// @return
-    const uint8_t *begin() {
-        return buffer_.data() + read_index_;
-    }
-
-    /// @brief 迭代器 end
-    /// @return
-    const uint8_t *end() {
-        return buffer_.data() + write_index_;
-    }
-
-    /// @brief 返回指针
+    /// @brief 返回读指针（只读快照）
     /// @return
     const uint8_t *data() {
+        std::lock_guard<std::mutex> lock(mutex_);
         return buffer_.data() + read_index_;
     }
 
