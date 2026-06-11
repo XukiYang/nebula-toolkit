@@ -11,9 +11,7 @@
 std::atomic<bool> running{true};
 
 int main() {
-    nebula::logger::CrashCoreLogger::getInstance().SetFilePath("crash_dump");
-    nebula::logger::CrashCoreLogger::getInstance().SetMaxStackDepth(50);
-    nebula::logger::CrashCoreLogger::getInstance().EnableTimestampFilenames(true);
+    nebula::logger::CrashCoreLogger::Init("crash_dump", {.max_stack_depth = 50, .use_timestamp_filename = true});
 
     using namespace nebula;
     io::core::ReactorCore reactor;
