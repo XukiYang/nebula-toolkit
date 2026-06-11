@@ -1,0 +1,24 @@
+{
+    "log": {
+        "global": {
+            "max_file_size_kb": 1024,
+            "print_line": false,
+            "print_func": false,
+            "print_time": false,
+            "log_directory": "./logs"
+        },
+        "async": {
+            "backend": "mutex",
+            "ring_buffer_size_kb": 64,
+            "batch_size_kb": 4,
+            "max_flush_size": 32
+        },
+        "level": {
+            "msg": true,
+            "info": true,
+            "warn": true,
+            "debug": true,
+            "error": true
+        }
+    }
+}

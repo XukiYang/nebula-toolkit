@@ -27,11 +27,17 @@ set(FMT_TEST OFF CACHE BOOL "" FORCE)
 set(FMT_DOC OFF CACHE BOOL "" FORCE)
 add_subdirectory(lib/fmt)
 
+include(FetchContent)
+FetchContent_Declare(nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG        v3.11.3)
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(nlohmann_json)
+
 # Boost（仅需头文件：interprocess / multi_index）
 # 按需引入，不拉取整个 Boost 仓库
 option(NEBULA_USE_FETCH_BOOST "Use FetchContent to download Boost headers" OFF)
 if(NEBULA_USE_FETCH_BOOST)
-    include(FetchContent)
     FetchContent_Declare(
         Boost
         URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0-b2-nodocs.tar.gz
@@ -63,10 +69,15 @@ add_library(nebula::containers ALIAS nebula_containers)
 set_target_properties(nebula_containers PROPERTIES EXPORT_NAME containers)
 target_link_libraries(nebula_containers INTERFACE nebula::headers)
 
+add_library(nebula_json INTERFACE)
+add_library(nebula::json ALIAS nebula_json)
+set_target_properties(nebula_json PROPERTIES EXPORT_NAME json)
+target_link_libraries(nebula_json INTERFACE nebula::headers $<BUILD_INTERFACE:nlohmann_json::nlohmann_json>)
+
 add_library(nebula_config INTERFACE)
 add_library(nebula::config ALIAS nebula_config)
 set_target_properties(nebula_config PROPERTIES EXPORT_NAME config)
-target_link_libraries(nebula_config INTERFACE nebula::headers)
+target_link_libraries(nebula_config INTERFACE nebula::json)
 
 add_library(nebula_memory INTERFACE)
 add_library(nebula::memory ALIAS nebula_memory)
@@ -81,7 +92,7 @@ target_link_libraries(nebula_threading INTERFACE nebula::headers)
 add_library(nebula_logger INTERFACE)
 add_library(nebula::logger ALIAS nebula_logger)
 set_target_properties(nebula_logger PROPERTIES EXPORT_NAME logger)
-target_link_libraries(nebula_logger INTERFACE nebula::containers nebula::config fmt::fmt)
+target_link_libraries(nebula_logger INTERFACE nebula::containers nebula::config nebula::json fmt::fmt)
 
 add_library(nebula_io INTERFACE)
 add_library(nebula::io ALIAS nebula_io)
@@ -100,6 +111,7 @@ set_target_properties(nebula_all PROPERTIES EXPORT_NAME all)
 target_link_libraries(nebula_all INTERFACE
     nebula::containers
     nebula::config
+    nebula::json
     nebula::memory
     nebula::threading
     nebula::logger
@@ -133,7 +145,7 @@ if(NEBULA_BUILD_EXAMPLES)
 endif()
 
 install(DIRECTORY include/ DESTINATION include)
-install(TARGETS nebula_headers nebula_containers nebula_config nebula_memory nebula_threading nebula_logger nebula_io nebula_shmstore nebula_all
+install(TARGETS nebula_headers nebula_containers nebula_config nebula_json nebula_memory nebula_threading nebula_logger nebula_io nebula_shmstore nebula_all
         EXPORT nebulaTargets)
 install(EXPORT nebulaTargets NAMESPACE nebula:: DESTINATION lib/cmake/nebula-toolkit)
 
