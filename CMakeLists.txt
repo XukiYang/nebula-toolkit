@@ -27,6 +27,22 @@ set(FMT_TEST OFF CACHE BOOL "" FORCE)
 set(FMT_DOC OFF CACHE BOOL "" FORCE)
 add_subdirectory(lib/fmt)
 
+# Boost（仅需头文件：interprocess / multi_index）
+# 按需引入，不拉取整个 Boost 仓库
+option(NEBULA_USE_FETCH_BOOST "Use FetchContent to download Boost headers" OFF)
+if(NEBULA_USE_FETCH_BOOST)
+    include(FetchContent)
+    FetchContent_Declare(
+        Boost
+        URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0-b2-nodocs.tar.gz
+        URL_HASH SHA256=6e681e40b43a8a tried_to_keep_this_short
+        # 实际使用时去掉 URL_HASH 或填正确的 hash
+    )
+    FetchContent_MakeAvailable(Boost)
+else()
+    find_package(Boost 1.71 REQUIRED)
+endif()
+
 find_package(Threads REQUIRED)
 
 # ------------------------------------------------------------------
@@ -72,6 +88,12 @@ add_library(nebula::io ALIAS nebula_io)
 set_target_properties(nebula_io PROPERTIES EXPORT_NAME io)
 target_link_libraries(nebula_io INTERFACE nebula::containers nebula::threading nebula::logger)
 
+add_library(nebula_shmstore INTERFACE)
+add_library(nebula::shmstore ALIAS nebula_shmstore)
+set_target_properties(nebula_shmstore PROPERTIES EXPORT_NAME shmstore)
+target_include_directories(nebula_shmstore INTERFACE ${Boost_INCLUDE_DIRS})
+target_link_libraries(nebula_shmstore INTERFACE nebula::headers rt)
+
 add_library(nebula_all INTERFACE)
 add_library(nebula::all ALIAS nebula_all)
 set_target_properties(nebula_all PROPERTIES EXPORT_NAME all)
@@ -82,6 +104,7 @@ target_link_libraries(nebula_all INTERFACE
     nebula::threading
     nebula::logger
     nebula::io
+    nebula::shmstore
 )
 
 # Keep compatibility with Linux toolchains that still require explicit atomic.
@@ -110,7 +133,7 @@ if(NEBULA_BUILD_EXAMPLES)
 endif()
 
 install(DIRECTORY include/ DESTINATION include)
-install(TARGETS nebula_headers nebula_containers nebula_config nebula_memory nebula_threading nebula_logger nebula_io nebula_all
+install(TARGETS nebula_headers nebula_containers nebula_config nebula_memory nebula_threading nebula_logger nebula_io nebula_shmstore nebula_all
         EXPORT nebulaTargets)
 install(EXPORT nebulaTargets NAMESPACE nebula:: DESTINATION lib/cmake/nebula-toolkit)
 
