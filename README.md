@@ -1,172 +1,168 @@
 # Nebula-Toolkit
 
-Nebula-Toolkit 是一个轻量级、高性能的 C++ 工具库，提供了网络编程、数据处理、线程管理等常用功能模块，适用于各种 C++ 项目开发。
+Nebula-Toolkit 是一个轻量级、高性能的 C++17 头文件工具库，提供了网络编程、数据处理、线程管理、共享内存等常用功能模块。
 
 ## 支持的 C++ 版本
 
-- **最低要求**: C++11
-- **推荐版本**: C++14 及以上
+- **要求**: C++17（使用了 `if constexpr`、折叠表达式、`std::byte` 等特性）
 
 ## 模块概览
 
 ### 数据容器库 (`nebula::containers`)
 
-- **CircularBuffer**
-  - 线程安全的环形缓冲区
-  - 支持线性 IO、动态扩容、迭代器访问、零拷贝操作
-  - 适用于网络数据缓存、数据流处理等场景
-  - **C++ 版本要求**: C++11
+- **CircularBuffer** — 线程安全环形缓冲区，支持线性 IO、动态扩容、迭代器访问
+- **UnPacker** — 基于 CircularBuffer 的数据包解包器，支持多种分包模式
+- **BytesStream** — 字节流读写封装
+- **LockFreeQueue** — 无锁队列
 
-- **UnPacker**
-  - 基于环形缓冲区的数据包解包器
-  - 支持头定位符、尾定位符、头尾定位符等多种分包模式
-  - 提供数据大小回调和校验回调，支持自定义解析逻辑
-  - **C++ 版本要求**: C++11
+### 配置处理库 (`nebula::config`)
 
-- **BitUtils**
-  - 位操作工具集
-  - 支持位设置、清除、翻转、计数等操作
-  - 提供 32 位和 64 位整数的位操作方法
-  - **C++ 版本要求**: C++11
+- **IniConfigHandler** — INI 配置文件读写，支持动态更新
+- **IniReader** — 轻量级 INI 文件读取器
+- **JsonReader** — JSON 配置读取（基于 nlohmann/json）
+
+### 加密库 (`nebula::crypto`)
+
+- **CRC32** — CRC32 校验计算
 
 ### 日志库 (`nebula::logger`)
 
-- **Logger**
-  - 基于懒汉单例模式的日志实现
-  - 支持日志分级（INFO、WARN、DEBUG、ERROR 等）
-  - 提供文件输出、控制台输出、异步写入等功能
-  - 支持配置动态更新，包括日志目录、文件大小限制等
-  - **C++ 版本要求**: C++17
-  - **备注**: 使用了 `if constexpr`、折叠表达式和 `std::byte` 等 C++17 特性
-
-### 线程库 (`nebula::threading`)
-
-- **ThreadPool**
-  - 基于任务队列的异步线程池
-  - 支持单任务和批量任务提交
-  - 通过条件变量实现线程休眠与唤醒，减少资源消耗
-  - **C++ 版本要求**: C++11
-
-- **TimerScheduler**
-  - 基于线程池和优先级队列的定时调度器
-  - 支持毫秒级精度的定时任务
-  - 支持取消未执行的任务，自动管理任务提交和线程池执行
-  - **C++ 版本要求**: C++14
-  - **备注**: 使用了 `std::make_unique` 等 C++14 特性
+- **Logger** — 异步日志实现，支持分级、文件输出、配置热更新
+- **CrashCoreLogger** — 信号安全的日志器，适用于崩溃场景
 
 ### 内存库 (`nebula::memory`)
 
-- **BasicMemoryPool**
-  - 线程安全的内存池实现
-  - 支持内存块的分配和释放
-  - 适用于频繁内存操作的场景，减少内存碎片
-  - **C++ 版本要求**: C++11
-
-### 配置处理库 (`nebula::config_handler`)
-
-- **IniConfigHandler**
-  - INI 配置文件处理器
-  - 支持读取、解析、修改 INI 配置文件
-  - 提供多种数据类型的获取方法（布尔值、整数、字符串等）
-  - **C++ 版本要求**: C++11
-
-- **IniReader**
-  - 轻量级 INI 文件读取器
-  - 提供简洁的接口读取 INI 文件中的配置项
-  - **C++ 版本要求**: C++11
+- **MemoryPool** — 线程安全内存池，减少频繁分配的开销
 
 ### IO 库 (`nebula::io`)
 
-- **ReactorCore**
-  - 基于 epoll 的协议无关事件反应器核心
-  - 统一支持 TCP/UDP/串口等多种协议的 I/O 事件分发
-  - 提供非阻塞 IO、边缘触发与水平触发模式
-  - **C++ 版本要求**: C++14
-  - **备注**: 使用了 `std::make_unique` 等 C++14 特性
+- **ReactorCore** — 基于 epoll 的事件反应器，支持 TCP/UDP/串口
+- **TcpWriteManager** — TCP 写管理器
+- **ProtocolHandler** — 协议处理器基类
+- **SpHandler** — 串口事件驱动协议处理器
+- **SocketCreator** — 套接字/串口设备创建工厂
+- **SerialClient** — 阻塞式串口客户端
 
-- **ProtocolHandler**
-  - 协议处理器基类
-  - 提供 TCP、UDP、串口等协议的处理接口
-  - 支持事件驱动的 I/O 编程模型
+### 线程库 (`nebula::threading`)
 
-- **TcpListenerHandler**
-  - TCP 监听型协议处理器
-  - 封装 TCP accept 逻辑，从 ReactorCore 解耦
+- **TimerScheduler** — 基于优先级队列的定时调度器，毫秒级精度
 
-- **SpHandler**
-  - 串口事件驱动协议处理器
-  - 通过 epoll 监听串口 fd，配合 UnPacker 解帧
-  - 适用于 Reactor 事件驱动场景
+### 共享内存库 (`nebula::shmstore`)
 
-- **SocketCreator**
-  - 套接字/串口设备创建工厂
-  - 支持 TCP、UDP 套接字和串口 fd 的创建与配置
+- **ShmManager** — 共享内存管理器
+- **ShmAllocator** — 共享内存分配器
+- **Store** — 共享内存存储
+- **ChangeWatcher / ChangeNotifier** — 变更监听与通知
 
-- **SerialClient**
-  - 阻塞式串口客户端
-  - 支持串口的打开、关闭、读写操作
-  - 适用于不需要 Reactor 的简单串口通信场景
+## 依赖项
 
-## 构建与安装
+- C++17 编译器
+- [fmt](https://github.com/fmtlib/fmt) — 日志格式化（`lib/fmt` 子模块）
+- [nlohmann/json](https://github.com/nlohmann/json) — JSON 处理（CMake FetchContent 自动拉取）
+- Boost headers — 共享内存模块使用（interprocess / multi_index）
+- pthreads
 
-### 依赖项
+## 构建
 
-- C++17 兼容的编译器
-- fmt 库（用于日志格式化）
+```bash
+# 默认构建（Debug，含测试和示例）
+cmake --preset default
+cmake --build build
 
-### 构建方法
+# Release 构建（不含测试）
+cmake --preset release
+cmake --build build-release
 
-1. 克隆仓库
-2. 使用 CMake 或直接编译源文件
+# 快速迭代（不含测试）
+cmake --preset notests
+cmake --build build-notests
 
-## 工程结构约定
+# 便捷脚本
+./script/run.sh              # 构建并运行
+./script/run.sh --build-only # 仅构建
+./script/run.sh -c -v        # 清理构建 + 详细输出
+./script/run.sh --gdb        # GDB 调试运行
+```
 
-- `include/`：头文件区（所有模块实现与对外 API）
-- `lib/`：第三方依赖（git 子模块）
-- `examples/`：示例程序
-- `tests/`：测试代码
+### 运行测试
 
-详细说明见项目根目录下的 `CLAUDE.md`。
+```bash
+cmake --preset default && cmake --build build
+./build/output/test_unit_io_reactor
+```
+
+测试是普通的 `main()` 可执行文件，无测试框架。添加新测试使用 `nebula_add_unit_test()`。
 
 ## 接入方式
 
-### 方式一：直接 include（头文件导出层）
-
-保持使用 `include/<module>/*.hpp`，示例：
-
-```cpp
-#include "containers/circular_buffer.hpp"
-#include "threading/thread_pool.hpp"
-```
-
-### 方式二：CMake 子项目接入
+### CMake 子项目（推荐）
 
 ```cmake
 add_subdirectory(third_party/nebula-toolkit)
 target_link_libraries(your_target PRIVATE nebula::all)
 ```
 
-也可以按模块链接：
+按模块链接：
 
 ```cmake
 target_link_libraries(your_target PRIVATE nebula::containers nebula::threading)
 ```
 
-### 方式三：安装后 find_package
+### 直接 include
+
+```cpp
+#include "containers/circular_buffer.hpp"
+#include "threading/timer_scheduler.hpp"
+```
+
+### find_package
 
 ```cmake
 find_package(nebula-toolkit CONFIG REQUIRED)
 target_link_libraries(your_target PRIVATE nebula::all)
 ```
 
-## 兼容性说明
+## CMake Targets
 
-- 外部 `#include` 路径保持稳定：`include/<module>/*.hpp`
-- 对外 CMake target 保持稳定：`nebula::containers`、`nebula::logger`、`nebula::io`、`nebula::all`
+| Target | 模块 |
+|---|---|
+| `nebula::containers` | 数据容器 |
+| `nebula::config` | 配置处理 |
+| `nebula::json` | JSON 封装 |
+| `nebula::memory` | 内存池 |
+| `nebula::threading` | 线程/定时器 |
+| `nebula::logger` | 日志 |
+| `nebula::io` | 网络 IO |
+| `nebula::shmstore` | 共享内存 |
+| `nebula::all` | 全部模块 |
+
+## 工程结构
+
+```
+include/          # 头文件（所有库代码）
+├── containers/   # 数据容器
+├── config_handler/ # 配置处理
+├── crypto/       # 加密工具
+├── io/           # 网络 IO
+│   ├── core/     #   Reactor 核心
+│   └── transport/#   协议传输层
+├── logger/       # 日志
+├── memory/       # 内存池
+├── shmstore/     # 共享内存
+└── threading/    # 线程/定时器
+lib/              # 第三方依赖（git 子模块）
+tests/            # 测试
+examples/         # 示例
+```
 
 ## 代码风格
 
-使用 Google C++ 代码规范
+Google C++ 规范，4 空格缩进，120 列限制。
+
+```bash
+python3 script/clang-format.py           # 格式化
+python3 script/clang-format.py --dry-run # 检查
+```
 
 ## 分支管理
 
